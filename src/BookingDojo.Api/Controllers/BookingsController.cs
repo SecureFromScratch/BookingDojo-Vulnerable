@@ -35,8 +35,10 @@ public class BookingsController : ControllerBase
         if (hotel == null || !hotel.IsActive)
             return BadRequest(new { message = "Hotel not found or inactive" });
 
-        if (request.CardLastFour.Length != 4 || !request.CardLastFour.All(char.IsDigit))
-            return BadRequest(new { message = "cardLastFour must be exactly 4 digits" });
+        if (request.CardNumber.Length < 13 || request.CardNumber.Length > 19 || !request.CardNumber.All(char.IsDigit))
+            return BadRequest(new { message = "cardNumber must be 13–19 digits" });
+
+        var (lastFour, storedCardNumber, cardToken) = Tokenize(request.CardNumber);
 
         var booking = new Booking
         {
@@ -45,7 +47,9 @@ public class BookingsController : ControllerBase
             HotelId         = request.HotelId,
             CheckIn         = DateTime.SpecifyKind(request.CheckIn, DateTimeKind.Utc),
             CheckOut        = DateTime.SpecifyKind(request.CheckOut, DateTimeKind.Utc),
-            CardLastFour    = request.CardLastFour,
+            CardLastFour    = lastFour,
+            CardNumber      = storedCardNumber,
+            CardToken       = cardToken,
             SpecialRequests = request.SpecialRequests,
             CreatedAt       = DateTime.UtcNow
         };
@@ -55,6 +59,15 @@ public class BookingsController : ControllerBase
 
         return CreatedAtAction(nameof(GetBookingById), new { id = booking.Id },
             ToDto(booking, hotel.Name));
+    }
+
+    // Returns (lastFour, cardNumber, cardToken) based on the active workshop mode.
+    private (string lastFour, string? cardNumber, string? cardToken) Tokenize(string fullCardNumber)
+    {
+        var lastFour = fullCardNumber[^4..];
+        if (_workshop.Value.CardPiiStorage == "Vulnerable")
+            return (lastFour, fullCardNumber, null);
+        return (lastFour, null, $"tok_{Guid.NewGuid().ToString("N")[..12]}");
     }
 
     [HttpGet]
@@ -127,6 +140,8 @@ public class BookingsController : ControllerBase
                         reader.GetDateTime(reader.GetOrdinal("CheckIn")),
                         reader.GetDateTime(reader.GetOrdinal("CheckOut")),
                         reader.GetString(reader.GetOrdinal("CardLastFour")),
+                        null, // CardNumber — not in base SELECT; craft a UNION to expose it
+                        null, // CardToken
                         reader.IsDBNull(reader.GetOrdinal("SpecialRequests"))
                             ? "" : reader.GetString(reader.GetOrdinal("SpecialRequests")),
                         reader.GetDateTime(reader.GetOrdinal("CreatedAt"))
@@ -218,5 +233,6 @@ public class BookingsController : ControllerBase
 
     private static BookingDto ToDto(Booking b, string hotelName) => new(
         b.Id, b.UserId, b.Username, b.HotelId, hotelName,
-        b.CheckIn, b.CheckOut, b.CardLastFour, b.SpecialRequests, b.CreatedAt);
+        b.CheckIn, b.CheckOut, b.CardLastFour, b.CardNumber, b.CardToken,
+        b.SpecialRequests, b.CreatedAt);
 }

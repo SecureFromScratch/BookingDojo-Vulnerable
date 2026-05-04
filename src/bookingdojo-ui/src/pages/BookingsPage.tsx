@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, type Booking, type Hotel } from '../api/client'
 import Pagination from '../components/Pagination'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function BookingsPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [bookingsPage, setBookingsPage] = useState(1)
   const [bookingsTotalPages, setBookingsTotalPages] = useState(1)
@@ -15,12 +17,14 @@ export default function BookingsPage() {
   const [formError, setFormError] = useState('')
   const [formSuccess, setFormSuccess] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [addingToCart, setAddingToCart] = useState(false)
+  const [cartSuccess, setCartSuccess] = useState('')
 
   const [form, setForm] = useState({
     hotelId: '',
     checkIn: '',
     checkOut: '',
-    cardLastFour: '',
+    cardNumber: '',
     specialRequests: '',
   })
 
@@ -30,10 +34,6 @@ export default function BookingsPage() {
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState('')
 
-  const [couponCode, setCouponCode] = useState('')
-  const [couponResult, setCouponResult] = useState<{ discountPercent: number; message: string } | null>(null)
-  const [couponError, setCouponError] = useState('')
-  const [couponSubmitting, setCouponSubmitting] = useState(false)
 
 
   const loadBookings = (page: number) => {
@@ -65,13 +65,34 @@ export default function BookingsPage() {
     setSubmitting(true)
     try {
       const booking = await api.createBooking(form)
-      setForm({ hotelId: '', checkIn: '', checkOut: '', cardLastFour: '', specialRequests: '' })
+      setForm({ hotelId: '', checkIn: '', checkOut: '', cardNumber: '', specialRequests: '' })
       setFormSuccess(`Booking #${booking.id} confirmed.`)
       loadBookings(1)
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to create booking')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleAddToCart = async () => {
+    setFormError('')
+    setCartSuccess('')
+    setAddingToCart(true)
+    try {
+      await api.addToCart({
+        hotelId: form.hotelId,
+        checkIn: form.checkIn,
+        checkOut: form.checkOut,
+        cardNumber: form.cardNumber,
+        specialRequests: form.specialRequests,
+      })
+      setForm({ hotelId: '', checkIn: '', checkOut: '', cardNumber: '', specialRequests: '' })
+      setCartSuccess('Item added to cart.')
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to add to cart')
+    } finally {
+      setAddingToCart(false)
     }
   }
 
@@ -97,22 +118,6 @@ export default function BookingsPage() {
     setSearchError('')
   }
 
-  const handleRedeemCoupon = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setCouponError('')
-    setCouponResult(null)
-    setCouponSubmitting(true)
-    try {
-      const res = await api.redeemCoupon(couponCode)
-      setCouponResult(res)
-      setCouponCode('')
-    } catch (err) {
-      setCouponError(err instanceof Error ? err.message : 'Redemption failed')
-    } finally {
-      setCouponSubmitting(false)
-    }
-  }
-
   return (
     <div>
       <h1 className="page-title">Bookings</h1>
@@ -121,6 +126,7 @@ export default function BookingsPage() {
       <div className="card">
         <h2 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>New Booking</h2>
         {formSuccess && <div className="success-msg">{formSuccess}</div>}
+        {cartSuccess && <div className="success-msg">{cartSuccess} <button style={{ background: 'none', border: 'none', color: '#1d4ed8', cursor: 'pointer', padding: 0, textDecoration: 'underline' }} onClick={() => navigate('/cart')}>View cart</button></div>}
         {formError && <div className="error-msg">{formError}</div>}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -147,11 +153,11 @@ export default function BookingsPage() {
             </div>
           </div>
           <div className="form-group">
-            <label>Card last 4 digits</label>
+            <label>Card number (16 digits)</label>
             <input
-              type="text" maxLength={4} pattern="[0-9]{4}" placeholder="e.g. 1234"
-              value={form.cardLastFour}
-              onChange={e => setForm(f => ({ ...f, cardLastFour: e.target.value }))}
+              type="text" maxLength={16} pattern="[0-9]{13,19}" placeholder="e.g. 4111111111111234"
+              value={form.cardNumber}
+              onChange={e => setForm(f => ({ ...f, cardNumber: e.target.value }))}
               required
             />
           </div>
@@ -160,9 +166,17 @@ export default function BookingsPage() {
             <textarea rows={2} value={form.specialRequests}
               onChange={e => setForm(f => ({ ...f, specialRequests: e.target.value }))} />
           </div>
-          <button type="submit" className="btn-primary" disabled={submitting}>
-            {submitting ? 'Booking...' : 'Book Now'}
-          </button>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button type="submit" className="btn-primary" disabled={submitting}>
+              {submitting ? 'Booking...' : 'Book Now'}
+            </button>
+            {user?.role !== 'AdminUser' && (
+              <button type="button" onClick={handleAddToCart} disabled={addingToCart}
+                style={{ padding: '0.5rem 1.25rem', border: '1px solid #1d4ed8', borderRadius: '6px', background: 'white', color: '#1d4ed8', cursor: 'pointer', fontWeight: 500 }}>
+                {addingToCart ? 'Adding...' : '+ Add to Cart'}
+              </button>
+            )}
+          </div>
         </form>
       </div>
 
@@ -195,31 +209,6 @@ export default function BookingsPage() {
               Clear
             </button>
           )}
-        </form>
-      </div>
-
-      {/* Coupon redemption */}
-      <div className="card" style={{ marginTop: '1.5rem' }}>
-        <h2 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Redeem Coupon</h2>
-        {couponError && <div className="error-msg">{couponError}</div>}
-        {couponResult && (
-          <div className="success-msg">
-            {couponResult.message} — <strong>{couponResult.discountPercent}% off</strong> your next booking
-          </div>
-        )}
-        <form onSubmit={handleRedeemCoupon} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
-          <div className="form-group" style={{ flex: 1, margin: 0 }}>
-            <input
-              type="text"
-              placeholder="Coupon code..."
-              value={couponCode}
-              onChange={e => setCouponCode(e.target.value)}
-              required
-            />
-          </div>
-          <button type="submit" className="btn-primary" disabled={couponSubmitting}>
-            {couponSubmitting ? 'Applying...' : 'Apply'}
-          </button>
         </form>
       </div>
 
@@ -306,7 +295,13 @@ export default function BookingsPage() {
                         <td>{b.hotelName}</td>
                         <td>{new Date(b.checkIn).toLocaleDateString()}</td>
                         <td>{new Date(b.checkOut).toLocaleDateString()}</td>
-                        <td style={{ fontFamily: 'monospace' }}>**** **** **** {b.cardLastFour}</td>
+                        <td style={{ fontFamily: 'monospace' }}>
+                          {b.cardNumber
+                            ? <span style={{ color: '#dc2626' }}>{b.cardNumber}</span>
+                            : b.cardToken
+                              ? <>{b.cardLastFour.padStart(16, '*')} <span style={{ color: '#16a34a', fontSize: '0.8rem' }}>{b.cardToken}</span></>
+                              : `**** **** **** ${b.cardLastFour}`}
+                        </td>
                         <td style={{ color: '#666', fontSize: '0.9rem' }}>{b.specialRequests}</td>
                       </tr>
                     ))}

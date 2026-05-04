@@ -14,6 +14,9 @@ public class BookingDojoDbContext : DbContext
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<Coupon> Coupons => Set<Coupon>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<Cart> Carts => Set<Cart>();
+    public DbSet<CartItem> CartItems => Set<CartItem>();
+    public DbSet<MfaChallenge> MfaChallenges => Set<MfaChallenge>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -84,6 +87,29 @@ public class BookingDojoDbContext : DbContext
             e.HasOne(t => t.User)
              .WithMany()
              .HasForeignKey(t => t.UserId);
+        });
+
+        modelBuilder.Entity<Cart>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.HasIndex(c => c.UserId).IsUnique();
+            e.HasOne(c => c.User).WithMany().HasForeignKey(c => c.UserId);
+            e.HasMany(c => c.Items).WithOne(i => i.Cart).HasForeignKey(i => i.CartId);
+        });
+
+        modelBuilder.Entity<CartItem>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.CardLastFour).HasMaxLength(4);
+            e.Property(i => i.SpecialRequests).HasMaxLength(500);
+            e.HasOne(i => i.Hotel).WithMany().HasForeignKey(i => i.HotelId);
+        });
+
+        modelBuilder.Entity<MfaChallenge>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.Property(m => m.Code).HasMaxLength(4);
+            e.HasIndex(m => m.UserId);
         });
     }
 }

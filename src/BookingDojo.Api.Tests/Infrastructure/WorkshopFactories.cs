@@ -30,6 +30,26 @@ public class ResourceConsumptionVulnerableFactory : CustomWebApplicationFactory
     }
 }
 
+public class VulnerableCouponCartFactory : CustomWebApplicationFactory
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.ConfigureServices(services =>
+            services.PostConfigure<WorkshopOptions>(o => o.CouponRedemptionRaceCondition = "Vulnerable"));
+    }
+}
+
+public class FixedCouponCartFactory : CustomWebApplicationFactory
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.ConfigureServices(services =>
+            services.PostConfigure<WorkshopOptions>(o => o.CouponRedemptionRaceCondition = "Fixed"));
+    }
+}
+
 public class FixedWorkshopFactory : CustomWebApplicationFactory
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -40,6 +60,8 @@ public class FixedWorkshopFactory : CustomWebApplicationFactory
             {
                 o.BookingIdorAccess = "Fixed";
                 o.BookingSearchSqlInjection = "Fixed";
+                o.CardPiiStorage = "Fixed";
+                o.MfaBruteForceProtection = "Fixed";
                 o.LoginSqlInjection = "Fixed";
                 o.BookingSearchResourceConsumption = "Fixed";
                 o.CouponRedemptionRaceCondition = "Fixed";

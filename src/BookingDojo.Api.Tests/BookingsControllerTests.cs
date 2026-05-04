@@ -66,7 +66,7 @@ public class BookingsControllerVulnerableTests : IClassFixture<VulnerableWorksho
             hotelId        = BookingsSeed.HotelId,
             checkIn        = DateTime.UtcNow.AddDays(5),
             checkOut       = DateTime.UtcNow.AddDays(8),
-            cardLastFour   = "1234",
+            cardNumber     = "4111111111111234",
             specialRequests = "Window seat"
         }));
 
@@ -86,7 +86,7 @@ public class BookingsControllerVulnerableTests : IClassFixture<VulnerableWorksho
             hotelId        = BookingsSeed.HotelId,
             checkIn        = DateTime.UtcNow.AddDays(5),
             checkOut       = DateTime.UtcNow.AddDays(8),
-            cardLastFour   = "abc",
+            cardNumber     = "abc",
             specialRequests = ""
         }));
 
@@ -102,7 +102,7 @@ public class BookingsControllerVulnerableTests : IClassFixture<VulnerableWorksho
             hotelId        = BookingsSeed.HotelId,
             checkIn        = DateTime.UtcNow.AddDays(5),
             checkOut       = DateTime.UtcNow.AddDays(8),
-            cardLastFour   = "9999",
+            cardNumber     = "9999",
             specialRequests = ""
         }));
 
@@ -116,14 +116,14 @@ public class BookingsControllerVulnerableTests : IClassFixture<VulnerableWorksho
         await clientA.PostAsync("/api/bookings", Json(new
         {
             hotelId = BookingsSeed.HotelId, checkIn = DateTime.UtcNow.AddDays(1),
-            checkOut = DateTime.UtcNow.AddDays(2), cardLastFour = "1111", specialRequests = ""
+            checkOut = DateTime.UtcNow.AddDays(2), cardNumber = "4111111111111111", specialRequests = ""
         }));
 
         var clientB = Client("SupportUser", BookingsSeed.UserBId, "userB");
         await clientB.PostAsync("/api/bookings", Json(new
         {
             hotelId = BookingsSeed.HotelId, checkIn = DateTime.UtcNow.AddDays(3),
-            checkOut = DateTime.UtcNow.AddDays(4), cardLastFour = "2222", specialRequests = ""
+            checkOut = DateTime.UtcNow.AddDays(4), cardNumber = "4111111111112222", specialRequests = ""
         }));
 
         var response = await clientA.GetAsync("/api/bookings");
@@ -142,7 +142,7 @@ public class BookingsControllerVulnerableTests : IClassFixture<VulnerableWorksho
         var createResp = await clientA.PostAsync("/api/bookings", Json(new
         {
             hotelId = BookingsSeed.HotelId, checkIn = DateTime.UtcNow.AddDays(10),
-            checkOut = DateTime.UtcNow.AddDays(12), cardLastFour = "5678", specialRequests = "Quiet room"
+            checkOut = DateTime.UtcNow.AddDays(12), cardNumber = "4111111111115678", specialRequests = "Quiet room"
         }));
         var created = JsonSerializer.Deserialize<JsonElement>(await createResp.Content.ReadAsStringAsync());
         var bookingId = created.GetProperty("id").GetInt32();
@@ -204,7 +204,7 @@ public class BookingsControllerFixedTests : IClassFixture<FixedWorkshopFactory>
         var createResp = await clientA.PostAsync("/api/bookings", Json(new
         {
             hotelId = BookingsSeed.HotelId, checkIn = DateTime.UtcNow.AddDays(5),
-            checkOut = DateTime.UtcNow.AddDays(7), cardLastFour = "3333", specialRequests = ""
+            checkOut = DateTime.UtcNow.AddDays(7), cardNumber = "4111111111113333", specialRequests = ""
         }));
         var created = JsonSerializer.Deserialize<JsonElement>(await createResp.Content.ReadAsStringAsync());
         var bookingId = created.GetProperty("id").GetInt32();
@@ -224,7 +224,7 @@ public class BookingsControllerFixedTests : IClassFixture<FixedWorkshopFactory>
         var createResp = await clientA.PostAsync("/api/bookings", Json(new
         {
             hotelId = BookingsSeed.HotelId, checkIn = DateTime.UtcNow.AddDays(5),
-            checkOut = DateTime.UtcNow.AddDays(7), cardLastFour = "4444", specialRequests = ""
+            checkOut = DateTime.UtcNow.AddDays(7), cardNumber = "4111111111114444", specialRequests = ""
         }));
         var created = JsonSerializer.Deserialize<JsonElement>(await createResp.Content.ReadAsStringAsync());
         var bookingId = created.GetProperty("id").GetInt32();
@@ -251,14 +251,14 @@ public class BookingsControllerFixedTests : IClassFixture<FixedWorkshopFactory>
         await clientA.PostAsync("/api/bookings", Json(new
         {
             hotelId = BookingsSeed.HotelId, checkIn = DateTime.UtcNow.AddDays(1),
-            checkOut = DateTime.UtcNow.AddDays(2), cardLastFour = "7777", specialRequests = ""
+            checkOut = DateTime.UtcNow.AddDays(2), cardNumber = "4111111111117777", specialRequests = ""
         }));
 
         var clientB = Client("SupportUser", BookingsSeed.UserBId, "userB");
         await clientB.PostAsync("/api/bookings", Json(new
         {
             hotelId = BookingsSeed.HotelId, checkIn = DateTime.UtcNow.AddDays(3),
-            checkOut = DateTime.UtcNow.AddDays(4), cardLastFour = "8888", specialRequests = ""
+            checkOut = DateTime.UtcNow.AddDays(4), cardNumber = "4111111111118888", specialRequests = ""
         }));
 
         var response = await clientA.GetAsync("/api/bookings/search?q=test");
@@ -313,7 +313,7 @@ public class BookingsControllerFixedTests : IClassFixture<FixedWorkshopFactory>
                 hotelId = BookingsSeed.HotelId,
                 checkIn = DateTime.UtcNow.AddDays(i + 1),
                 checkOut = DateTime.UtcNow.AddDays(i + 2),
-                cardLastFour = $"55{i:D2}",
+                cardNumber = $"411111111111{i:D2}55",
                 specialRequests = ""
             }));
         }
@@ -379,7 +379,7 @@ public class ResourceConsumptionVulnerableTests : IClassFixture<ResourceConsumpt
                 hotelId = HotelId,
                 checkIn = DateTime.UtcNow.AddDays(i + 1),
                 checkOut = DateTime.UtcNow.AddDays(i + 2),
-                cardLastFour = $"66{i:D2}",
+                cardNumber = $"411111111111{i:D2}66",
                 specialRequests = ""
             }));
         }
@@ -406,7 +406,7 @@ public class ResourceConsumptionVulnerableTests : IClassFixture<ResourceConsumpt
                 hotelId = HotelId,
                 checkIn = DateTime.UtcNow.AddDays(i + 10),
                 checkOut = DateTime.UtcNow.AddDays(i + 11),
-                cardLastFour = $"77{i:D2}",
+                cardNumber = $"411111111111{i:D2}77",
                 specialRequests = ""
             }));
         }

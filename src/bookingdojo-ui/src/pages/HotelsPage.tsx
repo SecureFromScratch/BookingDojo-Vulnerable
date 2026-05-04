@@ -50,13 +50,11 @@ export default function HotelsPage() {
     }
   }
 
-  const canCreate = user?.role === 'AdminUser' || user?.role === 'PartnerUser'
-
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 className="page-title" style={{ marginBottom: 0, flex: 1 }}>Hotels</h1>
-        {canCreate && (
+        {user?.role === 'AdminUser' && (
           <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
             {showForm ? 'Cancel' : '+ Add Hotel'}
           </button>
@@ -102,21 +100,19 @@ export default function HotelsPage() {
                 required
               />
             </div>
-            {user?.role === 'AdminUser' && (
-              <div className="form-group">
-                <label>Partner</label>
-                <select
-                  value={form.partnerId ?? ''}
-                  onChange={e => setForm(f => ({ ...f, partnerId: e.target.value || undefined }))}
-                  required
-                >
-                  <option value="">Select a partner...</option>
-                  {partners.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div className="form-group">
+              <label>Partner</label>
+              <select
+                value={form.partnerId ?? ''}
+                onChange={e => setForm(f => ({ ...f, partnerId: e.target.value || undefined }))}
+                required
+              >
+                <option value="">Select a partner...</option>
+                {partners.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
             <button type="submit" className="btn-primary" disabled={submitting}>
               {submitting ? 'Creating...' : 'Create Hotel'}
             </button>
@@ -150,9 +146,7 @@ export default function HotelsPage() {
                   <td>{hotel.location}</td>
                   <td>{hotel.partnerName}</td>
                   <td style={{ maxWidth: 300 }}>{hotel.description}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    {new Date(hotel.createdAt).toLocaleDateString()}
-                  </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{new Date(hotel.createdAt).toLocaleDateString()}</td>
                 </tr>
               ))}
             </tbody>

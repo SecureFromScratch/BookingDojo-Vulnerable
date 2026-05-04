@@ -82,4 +82,22 @@ public class WorkshopOptions
     /// "Fixed"      – Returns a generic "An internal error occurred." message with no details.
     /// </summary>
     public string ExceptionDetailDisclosure { get; set; } = "Fixed";
+
+    /// <summary>
+    /// Lab 11 – Brute Force MFA Protection.
+    /// "Vulnerable" – POST /api/auth/mfa/verify places no limit on failed attempts.
+    ///                A 4-digit OTP (10,000 combinations) can be enumerated with a simple loop.
+    /// "Fixed"      – Attempt count is tracked; after 5 failures the challenge is invalidated
+    ///                and the caller receives 429 Too Many Requests.
+    /// </summary>
+    public string MfaBruteForceProtection { get; set; } = "Fixed";
+
+    /// <summary>
+    /// Lab 10 – Sensitive Data Exposure: Credit Card PII Storage.
+    /// "Vulnerable" – The full 16-digit card number is stored in the database and returned in
+    ///                API responses. An IDOR or SQL injection exposes real card numbers.
+    /// "Fixed"      – The server tokenizes on arrival: stores only the last 4 digits and an
+    ///                opaque token (tok_…). The full number is never persisted or returned.
+    /// </summary>
+    public string CardPiiStorage { get; set; } = "Fixed";
 }

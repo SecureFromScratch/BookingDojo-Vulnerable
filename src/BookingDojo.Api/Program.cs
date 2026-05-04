@@ -99,6 +99,9 @@ using (var scope = app.Services.CreateScope())
         await db.Bookings.FirstOrDefaultAsync();
         await db.Coupons.FirstOrDefaultAsync();
         await db.PasswordResetTokens.FirstOrDefaultAsync();
+        await db.Carts.FirstOrDefaultAsync();
+        await db.CartItems.FirstOrDefaultAsync();
+        await db.MfaChallenges.FirstOrDefaultAsync();
     }
     catch { schemaStale = true; }
 

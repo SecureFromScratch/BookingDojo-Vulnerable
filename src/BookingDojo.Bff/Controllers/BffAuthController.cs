@@ -96,6 +96,6 @@ public class BffAuthController : ControllerBase
     public IActionResult Logout()
     {
         Response.Cookies.Delete(CookieName);
-        return Ok();
+        return NoContent();
     }
 }

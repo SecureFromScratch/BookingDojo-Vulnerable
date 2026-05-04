@@ -14,8 +14,13 @@ public class Booking
     public DateTime CheckIn { get; set; }
     public DateTime CheckOut { get; set; }
 
-    // The sensitive field — makes the IDOR meaningful.
     public string CardLastFour { get; set; } = string.Empty;
+
+    // PII lab: full card number stored in vulnerable mode, null in fixed mode.
+    public string? CardNumber { get; set; }
+
+    // PII lab: opaque payment token stored in fixed mode, null in vulnerable mode.
+    public string? CardToken { get; set; }
 
     public string SpecialRequests { get; set; } = string.Empty;
 

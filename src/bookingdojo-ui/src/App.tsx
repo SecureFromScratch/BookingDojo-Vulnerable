@@ -7,6 +7,8 @@ import AuditLogsPage from './pages/AuditLogsPage'
 import BookingsPage from './pages/BookingsPage'
 import BookingDetailPage from './pages/BookingDetailPage'
 import IntegrationsPage from './pages/IntegrationsPage'
+import CartPage from './pages/CartPage'
+import MfaPage from './pages/MfaPage'
 
 function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
   const { user, loading } = useAuth()
@@ -44,6 +46,8 @@ function AppRoutes() {
               </ProtectedRoute>
             }
           />
+          <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
+          <Route path="/mfa" element={<ProtectedRoute><MfaPage /></ProtectedRoute>} />
           <Route path="/" element={<Navigate to="/bookings" replace />} />
         </Routes>
       </main>

@@ -39,6 +39,8 @@ export interface Booking {
   checkIn: string
   checkOut: string
   cardLastFour: string
+  cardNumber: string | null
+  cardToken: string | null
   specialRequests: string
   createdAt: string
 }
@@ -47,7 +49,7 @@ export interface CreateBookingRequest {
   hotelId: string
   checkIn: string
   checkOut: string
-  cardLastFour: string
+  cardNumber: string
   specialRequests: string
 }
 
@@ -59,9 +61,26 @@ export interface AuditLog {
   details: string
 }
 
-export interface CouponRedemption {
-  discountPercent: number
-  message: string
+export interface CartItem {
+  id: number
+  hotelId: string
+  hotelName: string
+  checkIn: string
+  checkOut: string
+  cardLastFour: string
+  cardNumber: string | null
+  specialRequests: string
+}
+
+export interface Cart {
+  id: number
+  items: CartItem[]
+}
+
+export interface CheckoutResult {
+  bookings: Booking[]
+  discountPercent: number | null
+  couponMessage: string | null
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -129,8 +148,28 @@ export const api = {
 
   getAuditLogs: () => request<AuditLog[]>('/bff/audit-logs'),
 
-  redeemCoupon: (code: string) =>
-    request<CouponRedemption>('/bff/coupons/redeem', {
+  getCart: () => request<Cart>('/bff/cart'),
+
+  addToCart: (data: { hotelId: string; checkIn: string; checkOut: string; cardNumber: string; specialRequests: string }) =>
+    request<CartItem>('/bff/cart/items', { method: 'POST', body: JSON.stringify(data) }),
+
+  removeFromCart: (itemId: number) =>
+    request<void>(`/bff/cart/items/${itemId}`, { method: 'DELETE' }),
+
+  checkout: (couponCode?: string) =>
+    request<CheckoutResult>('/bff/cart/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ couponCode: couponCode || null }),
+    }),
+
+  mfaChallenge: () =>
+    request<{ expiresAt: string; ttlMinutes: number }>('/bff/auth/mfa/challenge', { method: 'POST' }),
+
+  mfaGetOtp: () =>
+    request<{ code: string; expiresAt: string; attemptsRemaining: number | null; workshopNote: string }>('/bff/auth/mfa/otp'),
+
+  mfaVerify: (code: string) =>
+    request<{ verified: boolean; username: string; userId: string; verifiedAt: string }>('/bff/auth/mfa/verify', {
       method: 'POST',
       body: JSON.stringify({ code }),
     }),

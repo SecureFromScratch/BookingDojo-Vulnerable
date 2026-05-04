@@ -28,7 +28,7 @@ public record CreateBookingRequest(
     Guid HotelId,
     DateTime CheckIn,
     DateTime CheckOut,
-    string CardLastFour,
+    string CardNumber,
     string SpecialRequests);
 
 public record BookingDto(
@@ -40,6 +40,8 @@ public record BookingDto(
     DateTime CheckIn,
     DateTime CheckOut,
     string CardLastFour,
+    string? CardNumber,
+    string? CardToken,
     string SpecialRequests,
     DateTime CreatedAt);
 
@@ -50,7 +52,15 @@ public record AuditLogDto(
     string Action,
     string Details);
 
+public record AddToCartRequest(Guid HotelId, DateTime CheckIn, DateTime CheckOut, string CardNumber, string SpecialRequests);
+public record CartCheckoutRequest(string? CouponCode);
+public record CartItemDto(int Id, Guid HotelId, string HotelName, DateTime CheckIn, DateTime CheckOut, string CardLastFour, string? CardNumber, string SpecialRequests);
+public record CartDto(int Id, List<CartItemDto> Items);
+public record CheckoutResult(List<BookingDto> Bookings, int? DiscountPercent, string? CouponMessage);
+
 public record RedeemCouponRequest(string Code);
+
+public record MfaVerifyRequest(string Code);
 
 public record ForgotPasswordRequest(string Username);
 public record ResetPasswordRequest(string Token, string NewPassword);

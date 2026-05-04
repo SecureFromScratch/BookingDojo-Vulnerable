@@ -1,20 +1,20 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Navbar() {
   const { user, logout } = useAuth()
-  const navigate = useNavigate()
 
   const handleLogout = async () => {
     await logout()
-    navigate('/login')
   }
 
   return (
     <nav className="navbar">
       <Link to="/bookings" className="navbar-brand">BookingDojo</Link>
       <Link to="/bookings">Bookings</Link>
-      <Link to="/hotels">Hotels</Link>
+      {user?.role === 'AdminUser' && <Link to="/hotels">Hotels</Link>}
+      <Link to="/cart">Cart</Link>
+      <Link to="/mfa">MFA Demo</Link>
       {(user?.role === 'AdminUser' || user?.role === 'SupportUser') && (
         <Link to="/audit-logs">Audit Logs</Link>
       )}

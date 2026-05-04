@@ -24,6 +24,9 @@ public class DataSeeder
             await _context.Bookings.FirstOrDefaultAsync();
             await _context.Coupons.FirstOrDefaultAsync();
             await _context.PasswordResetTokens.FirstOrDefaultAsync();
+            await _context.Carts.FirstOrDefaultAsync();
+            await _context.CartItems.FirstOrDefaultAsync();
+            await _context.MfaChallenges.FirstOrDefaultAsync();
         }
         catch { schemaStale = true; }
 
@@ -78,8 +81,8 @@ public class DataSeeder
         // --- Bookings: IDOR lab (must be first — IDs #1 and #2 matter for the lab) ---
         // admin owns booking #1 (card 1234), partner owns booking #2 (card 4242).
         _context.Bookings.AddRange(
-            new Booking { UserId = adminId,   Username = "admin",   HotelId = grandSunshineId, CheckIn = DateTime.UtcNow.AddDays(10), CheckOut = DateTime.UtcNow.AddDays(14), CardLastFour = "1234", SpecialRequests = "High floor, away from elevator", CreatedAt = DateTime.UtcNow.AddDays(-2) },
-            new Booking { UserId = partnerId, Username = "partner", HotelId = grandSunshineId, CheckIn = DateTime.UtcNow.AddDays(20), CheckOut = DateTime.UtcNow.AddDays(23), CardLastFour = "4242", SpecialRequests = "Vegan breakfast, late checkout",  CreatedAt = DateTime.UtcNow.AddDays(-1) }
+            new Booking { UserId = adminId,   Username = "admin",   HotelId = grandSunshineId, CheckIn = DateTime.UtcNow.AddDays(10), CheckOut = DateTime.UtcNow.AddDays(14), CardLastFour = "1234", CardNumber = "4111111111111234", SpecialRequests = "High floor, away from elevator", CreatedAt = DateTime.UtcNow.AddDays(-2) },
+            new Booking { UserId = partnerId, Username = "partner", HotelId = grandSunshineId, CheckIn = DateTime.UtcNow.AddDays(20), CheckOut = DateTime.UtcNow.AddDays(23), CardLastFour = "4242", CardNumber = "5500005555554242", SpecialRequests = "Vegan breakfast, late checkout",  CreatedAt = DateTime.UtcNow.AddDays(-1) }
         );
 
         // --- Bookings: resource consumption lab (210 bookings for partner) ----
