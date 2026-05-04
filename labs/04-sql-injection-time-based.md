@@ -190,10 +190,10 @@ python sqlmap.py -u 'http://localhost:5001/bff/auth/login' \
 
 ```bash
 echo '$2b$10$<rest of hash>' > hash.txt
-hashcat -m 3200 hash.txt /usr/share/wordlists/rockyou.txt
+hashcat -m 3200 hash.txt /usr/share/wordlists/passwords.txt
 ```
 
-`Admin1234!` is in rockyou.txt. Expect a result within seconds on a GPU, minutes on CPU.
+`Admin1234!` is in many wordlists. Expect a result within seconds on a GPU, minutes on CPU.
 
 ---
 
