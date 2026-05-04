@@ -133,6 +133,11 @@ public class BookingsController : ControllerBase
                     ));
                 }
             }
+            catch(Exception ex)
+            {
+                // In a real application, log the exception and return a generic error message.
+                return StatusCode(500, new { message = "An error occurred while processing your request.", details = ex.Message });
+            }
             finally
             {
                 if (needsClose) await conn.CloseAsync();

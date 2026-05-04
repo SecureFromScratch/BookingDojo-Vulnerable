@@ -91,12 +91,14 @@ using (var scope = app.Services.CreateScope())
     // Check every table we own — any missing table triggers a full drop+recreate.
     // EnsureCreatedAsync does nothing when the database already exists, so new tables
     // added in later labs would never be created without this guard.
+    // Use FirstOrDefaultAsync (not AnyAsync) so EF Core projects all mapped columns —
+    // a missing column throws here, triggering a full schema rebuild.
     var schemaStale = false;
     try
     {
-        await db.Bookings.AnyAsync();
-        await db.Coupons.AnyAsync();
-        await db.PasswordResetTokens.AnyAsync();
+        await db.Bookings.FirstOrDefaultAsync();
+        await db.Coupons.FirstOrDefaultAsync();
+        await db.PasswordResetTokens.FirstOrDefaultAsync();
     }
     catch { schemaStale = true; }
 

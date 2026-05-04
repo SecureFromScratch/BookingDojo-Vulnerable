@@ -1,0 +1,50 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-api",
+      "program": "${workspaceFolder}/src/BookingDojo.Api/bin/Debug/net8.0/BookingDojo.Api.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/BookingDojo.Api",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5000"
+      },
+      "sourceFileMap": {
+        "/Views": "${workspaceFolder}/Views"
+      }
+    },
+    {
+      "name": "BFF",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-bff",
+      "program": "${workspaceFolder}/src/BookingDojo.Bff/bin/Debug/net8.0/BookingDojo.Bff.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/BookingDojo.Bff",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5001"
+      }
+    },
+    {
+      "name": "API + BFF",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-all",
+      "program": "${workspaceFolder}/src/BookingDojo.Api/bin/Debug/net8.0/BookingDojo.Api.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/BookingDojo.Api",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5000"
+      }
+    }
+  ]
+}

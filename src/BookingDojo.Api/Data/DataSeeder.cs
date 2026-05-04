@@ -21,9 +21,9 @@ public class DataSeeder
         var schemaStale = false;
         try
         {
-            await _context.Bookings.AnyAsync();
-            await _context.Coupons.AnyAsync();
-            await _context.PasswordResetTokens.AnyAsync();
+            await _context.Bookings.FirstOrDefaultAsync();
+            await _context.Coupons.FirstOrDefaultAsync();
+            await _context.PasswordResetTokens.FirstOrDefaultAsync();
         }
         catch { schemaStale = true; }
 
