@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34701.60
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookingDojo.Api", "src\BookingDojo.Api\BookingDojo.Api.csproj", "{A1B2C3D4-E5F6-4A5B-8C9D-E1F2A3B4C5D6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookingDojo.Bff", "src\BookingDojo.Bff\BookingDojo.Bff.csproj", "{B2C3D4E5-F6A7-5B6C-9D0E-F2A3B4C5D6E7}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{4A5A40E5-187A-4715-ADC4-565F2979B737}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BookingDojo.Api.Tests", "src\BookingDojo.Api.Tests\BookingDojo.Api.Tests.csproj", "{F5DBD6B9-8BC9-4D76-8305-C3D0128C4BC6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A1B2C3D4-E5F6-4A5B-8C9D-E1F2A3B4C5D6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-4A5B-8C9D-E1F2A3B4C5D6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-4A5B-8C9D-E1F2A3B4C5D6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-4A5B-8C9D-E1F2A3B4C5D6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2C3D4E5-F6A7-5B6C-9D0E-F2A3B4C5D6E7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2C3D4E5-F6A7-5B6C-9D0E-F2A3B4C5D6E7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2C3D4E5-F6A7-5B6C-9D0E-F2A3B4C5D6E7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2C3D4E5-F6A7-5B6C-9D0E-F2A3B4C5D6E7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F5DBD6B9-8BC9-4D76-8305-C3D0128C4BC6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F5DBD6B9-8BC9-4D76-8305-C3D0128C4BC6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F5DBD6B9-8BC9-4D76-8305-C3D0128C4BC6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F5DBD6B9-8BC9-4D76-8305-C3D0128C4BC6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{F5DBD6B9-8BC9-4D76-8305-C3D0128C4BC6} = {4A5A40E5-187A-4715-ADC4-565F2979B737}
+	EndGlobalSection
+EndGlobal

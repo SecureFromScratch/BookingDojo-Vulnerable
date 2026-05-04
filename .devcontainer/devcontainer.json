@@ -1,0 +1,35 @@
+{
+  "name": "BookingDojo Workshop",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "enableNonRootDocker": "true"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "forwardPorts": [5000, 5001, 5173, 5432],
+  "portsAttributes": {
+    "5000": { "label": "BookingDojo API", "onAutoForward": "silent" },
+    "5001": { "label": "BookingDojo BFF", "onAutoForward": "silent" },
+    "5173": { "label": "BookingDojo UI",  "onAutoForward": "openBrowser" },
+    "5432": { "label": "PostgreSQL",      "onAutoForward": "silent" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.csdevkit",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "ms-azuretools.vscode-docker",
+        "mtxr.sqltools",
+        "mtxr.sqltools-driver-pg"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}
