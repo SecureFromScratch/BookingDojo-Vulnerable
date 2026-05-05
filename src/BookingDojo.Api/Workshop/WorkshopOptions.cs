@@ -84,7 +84,25 @@ public class WorkshopOptions
     public string ExceptionDetailDisclosure { get; set; } = "Fixed";
 
     /// <summary>
-    /// Lab 11 – Brute Force MFA Protection.
+    /// Lab 11 – Log Injection and Audit Log Manipulation.
+    /// LogInjection:
+    ///   "Vulnerable" – User-controlled values (username, details) are string-interpolated
+    ///                  directly into ILogger messages. A \n in a username creates a fake
+    ///                  log line that looks like a legitimate server entry.
+    ///   "Fixed"      – Control characters are stripped before the value reaches ILogger.
+    ///                  Structured logging placeholders are used so values are never interpreted
+    ///                  as format strings or embedded raw.
+    /// AuditLogDeletion:
+    ///   "Vulnerable" – DELETE /api/audit-logs/{id} is accessible to both AdminUser and SupportUser
+    ///                  with no secondary audit trail — a SupportUser can erase evidence of their actions.
+    ///   "Fixed"      – Only AdminUser may delete entries; every deletion creates an immutable
+    ///                  LOG_ENTRY_DELETED record so erasure itself is audited.
+    /// </summary>
+    public string LogInjection { get; set; } = "Fixed";
+    public string AuditLogDeletion { get; set; } = "Fixed";
+
+    /// <summary>
+    /// Lab 12 – Brute Force MFA Protection.
     /// "Vulnerable" – POST /api/auth/mfa/verify places no limit on failed attempts.
     ///                A 4-digit OTP (10,000 combinations) can be enumerated with a simple loop.
     /// "Fixed"      – Attempt count is tracked; after 5 failures the challenge is invalidated

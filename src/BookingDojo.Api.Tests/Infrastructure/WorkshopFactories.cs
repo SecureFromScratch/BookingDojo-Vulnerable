@@ -62,6 +62,8 @@ public class FixedWorkshopFactory : CustomWebApplicationFactory
                 o.BookingSearchSqlInjection = "Fixed";
                 o.CardPiiStorage = "Fixed";
                 o.MfaBruteForceProtection = "Fixed";
+                o.LogInjection = "Fixed";
+                o.AuditLogDeletion = "Fixed";
                 o.LoginSqlInjection = "Fixed";
                 o.BookingSearchResourceConsumption = "Fixed";
                 o.CouponRedemptionRaceCondition = "Fixed";

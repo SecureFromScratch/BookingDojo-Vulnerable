@@ -148,6 +148,9 @@ export const api = {
 
   getAuditLogs: () => request<AuditLog[]>('/bff/audit-logs'),
 
+  deleteAuditLog: (id: string) =>
+    request<void>(`/bff/audit-logs/${id}`, { method: 'DELETE' }),
+
   getCart: () => request<Cart>('/bff/cart'),
 
   addToCart: (data: { hotelId: string; checkIn: string; checkOut: string; cardNumber: string; specialRequests: string }) =>
