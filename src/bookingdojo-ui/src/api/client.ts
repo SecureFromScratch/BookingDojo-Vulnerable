@@ -14,6 +14,7 @@ export interface Hotel {
   name: string
   location: string
   description: string
+  pricePerNight: number
   partnerName: string
   createdAt: string
 }
@@ -22,6 +23,7 @@ export interface CreateHotelRequest {
   name: string
   location: string
   description: string
+  pricePerNight: number
   partnerId?: string
 }
 
@@ -42,6 +44,7 @@ export interface Booking {
   cardNumber: string | null
   cardToken: string | null
   specialRequests: string
+  totalPrice: number
   createdAt: string
 }
 
@@ -70,11 +73,15 @@ export interface CartItem {
   cardLastFour: string
   cardNumber: string | null
   specialRequests: string
+  totalPrice: number
 }
 
 export interface Cart {
   id: number
   items: CartItem[]
+  appliedCouponCode?: string | null
+  appliedCouponDiscountPercent?: number | null
+  appliedCouponCount: number
 }
 
 export interface CheckoutResult {
@@ -152,6 +159,15 @@ export const api = {
     request<void>(`/bff/audit-logs/${id}`, { method: 'DELETE' }),
 
   getCart: () => request<Cart>('/bff/cart'),
+
+  redeemCoupon: (code: string) =>
+    request<{ discountPercent: number; message: string }>('/bff/coupons/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
+
+  cancelCoupon: (code: string) =>
+    request<void>(`/bff/coupons/redeem?code=${encodeURIComponent(code)}`, { method: 'DELETE' }),
 
   addToCart: (data: { hotelId: string; checkIn: string; checkOut: string; cardNumber: string; specialRequests: string }) =>
     request<CartItem>('/bff/cart/items', { method: 'POST', body: JSON.stringify(data) }),

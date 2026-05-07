@@ -2,11 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, type Booking, type Hotel } from '../api/client'
 import Pagination from '../components/Pagination'
-import { useAuth } from '../contexts/AuthContext'
 
 export default function BookingsPage() {
   const navigate = useNavigate()
-  const { user } = useAuth()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [bookingsPage, setBookingsPage] = useState(1)
   const [bookingsTotalPages, setBookingsTotalPages] = useState(1)
@@ -15,10 +13,7 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [formError, setFormError] = useState('')
-  const [formSuccess, setFormSuccess] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [addingToCart, setAddingToCart] = useState(false)
-  const [cartSuccess, setCartSuccess] = useState('')
 
   const [form, setForm] = useState({
     hotelId: '',
@@ -27,6 +22,12 @@ export default function BookingsPage() {
     cardNumber: '',
     specialRequests: '',
   })
+
+  const selectedHotel = hotels.find(h => h.id === form.hotelId)
+  const nights = form.checkIn && form.checkOut
+    ? Math.max(0, Math.round((new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime()) / 86400000))
+    : 0
+  const estimatedTotal = selectedHotel && nights > 0 ? selectedHotel.pricePerNight * nights : null
 
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Booking[] | null>(null)
@@ -61,24 +62,7 @@ export default function BookingsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormError('')
-    setFormSuccess('')
     setSubmitting(true)
-    try {
-      const booking = await api.createBooking(form)
-      setForm({ hotelId: '', checkIn: '', checkOut: '', cardNumber: '', specialRequests: '' })
-      setFormSuccess(`Booking #${booking.id} confirmed.`)
-      loadBookings(1)
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to create booking')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleAddToCart = async () => {
-    setFormError('')
-    setCartSuccess('')
-    setAddingToCart(true)
     try {
       await api.addToCart({
         hotelId: form.hotelId,
@@ -88,11 +72,11 @@ export default function BookingsPage() {
         specialRequests: form.specialRequests,
       })
       setForm({ hotelId: '', checkIn: '', checkOut: '', cardNumber: '', specialRequests: '' })
-      setCartSuccess('Item added to cart.')
+      navigate('/cart')
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to add to cart')
+      setFormError(err instanceof Error ? err.message : 'Failed to create booking')
     } finally {
-      setAddingToCart(false)
+      setSubmitting(false)
     }
   }
 
@@ -125,8 +109,6 @@ export default function BookingsPage() {
       {/* Create booking form */}
       <div className="card">
         <h2 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>New Booking</h2>
-        {formSuccess && <div className="success-msg">{formSuccess}</div>}
-        {cartSuccess && <div className="success-msg">{cartSuccess} <button style={{ background: 'none', border: 'none', color: '#1d4ed8', cursor: 'pointer', padding: 0, textDecoration: 'underline' }} onClick={() => navigate('/cart')}>View cart</button></div>}
         {formError && <div className="error-msg">{formError}</div>}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -166,17 +148,16 @@ export default function BookingsPage() {
             <textarea rows={2} value={form.specialRequests}
               onChange={e => setForm(f => ({ ...f, specialRequests: e.target.value }))} />
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button type="submit" className="btn-primary" disabled={submitting}>
-              {submitting ? 'Booking...' : 'Book Now'}
-            </button>
-            {user?.role !== 'AdminUser' && (
-              <button type="button" onClick={handleAddToCart} disabled={addingToCart}
-                style={{ padding: '0.5rem 1.25rem', border: '1px solid #1d4ed8', borderRadius: '6px', background: 'white', color: '#1d4ed8', cursor: 'pointer', fontWeight: 500 }}>
-                {addingToCart ? 'Adding...' : '+ Add to Cart'}
-              </button>
-            )}
-          </div>
+          {estimatedTotal !== null && (
+            <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '6px', fontSize: '0.95rem' }}>
+              <span style={{ color: '#0369a1' }}>
+                {nights} night{nights !== 1 ? 's' : ''} × ${selectedHotel!.pricePerNight.toFixed(2)} = <strong>${estimatedTotal.toFixed(2)}</strong>
+              </span>
+            </div>
+          )}
+          <button type="submit" className="btn-primary" disabled={submitting}>
+            {submitting ? 'Booking...' : 'Book Now'}
+          </button>
         </form>
       </div>
 

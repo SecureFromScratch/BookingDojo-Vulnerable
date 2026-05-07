@@ -17,6 +17,7 @@ export default function HotelsPage() {
     name: '',
     location: '',
     description: '',
+    pricePerNight: 0,
   })
 
   useEffect(() => {
@@ -40,7 +41,7 @@ export default function HotelsPage() {
     try {
       const hotel = await api.createHotel(form)
       setHotels(prev => [hotel, ...prev])
-      setForm({ name: '', location: '', description: '', partnerId: undefined })
+      setForm({ name: '', location: '', description: '', pricePerNight: 0, partnerId: undefined })
       setShowForm(false)
       setFormSuccess(`Hotel "${hotel.name}" created successfully.`)
     } catch (err) {
@@ -101,6 +102,17 @@ export default function HotelsPage() {
               />
             </div>
             <div className="form-group">
+              <label>Price per night (USD)</label>
+              <input
+                type="number"
+                min="1"
+                step="0.01"
+                value={form.pricePerNight || ''}
+                onChange={e => setForm(f => ({ ...f, pricePerNight: parseFloat(e.target.value) || 0 }))}
+                required
+              />
+            </div>
+            <div className="form-group">
               <label>Partner</label>
               <select
                 value={form.partnerId ?? ''}
@@ -135,6 +147,7 @@ export default function HotelsPage() {
                 <th>Name</th>
                 <th>Location</th>
                 <th>Partner</th>
+                <th>Price/Night</th>
                 <th>Description</th>
                 <th>Created</th>
               </tr>
@@ -145,6 +158,7 @@ export default function HotelsPage() {
                   <td><strong>{hotel.name}</strong></td>
                   <td>{hotel.location}</td>
                   <td>{hotel.partnerName}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>${hotel.pricePerNight.toFixed(2)}</td>
                   <td style={{ maxWidth: 300 }}>{hotel.description}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{new Date(hotel.createdAt).toLocaleDateString()}</td>
                 </tr>

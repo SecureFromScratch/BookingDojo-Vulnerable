@@ -5,14 +5,22 @@ export default function CartPage() {
   const [cart, setCart] = useState<Cart | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [couponCode, setCouponCode] = useState('')
+  const [couponInput, setCouponInput] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number; count: number } | null>(null)
+  const [couponError, setCouponError] = useState('')
+  const [applyingCoupon, setApplyingCoupon] = useState(false)
   const [checkoutResult, setCheckoutResult] = useState<CheckoutResult | null>(null)
   const [checkoutError, setCheckoutError] = useState('')
   const [checkingOut, setCheckingOut] = useState(false)
 
   useEffect(() => {
     api.getCart()
-      .then(setCart)
+      .then(cart => {
+        setCart(cart)
+        if (cart.appliedCouponCode && cart.appliedCouponDiscountPercent != null && cart.appliedCouponCount > 0) {
+          setAppliedCoupon({ code: cart.appliedCouponCode, discountPercent: cart.appliedCouponDiscountPercent, count: cart.appliedCouponCount })
+        }
+      })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
@@ -26,15 +34,49 @@ export default function CartPage() {
     }
   }
 
+  const handleApplyCoupon = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setCouponError('')
+    setApplyingCoupon(true)
+    try {
+      const code = couponInput.trim()
+      const result = await api.redeemCoupon(code)
+      // Re-fetch cart so count is server-authoritative
+      const updatedCart = await api.getCart()
+      setCart(updatedCart)
+      if (updatedCart.appliedCouponCode && updatedCart.appliedCouponDiscountPercent != null) {
+        setAppliedCoupon({ code: updatedCart.appliedCouponCode, discountPercent: updatedCart.appliedCouponDiscountPercent, count: updatedCart.appliedCouponCount })
+      } else {
+        setAppliedCoupon({ code, discountPercent: result.discountPercent, count: 1 })
+      }
+      setCouponInput('')
+    } catch (err) {
+      setCouponError(err instanceof Error ? err.message : 'Invalid coupon')
+    } finally {
+      setApplyingCoupon(false)
+    }
+  }
+
+  const handleRemoveCoupon = async () => {
+    if (!appliedCoupon) return
+    try {
+      await api.cancelCoupon(appliedCoupon.code)
+    } catch {
+      // best-effort — clear from UI regardless
+    }
+    setAppliedCoupon(null)
+    setCouponError('')
+  }
+
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault()
     setCheckoutError('')
     setCheckingOut(true)
     try {
-      const result = await api.checkout(couponCode || undefined)
+      const result = await api.checkout(appliedCoupon?.code)
       setCheckoutResult(result)
       setCart(prev => prev ? { ...prev, items: [] } : prev)
-      setCouponCode('')
+      setAppliedCoupon(null)
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : 'Checkout failed')
     } finally {
@@ -58,7 +100,7 @@ export default function CartPage() {
           </div>
           <table>
             <thead>
-              <tr><th>Booking #</th><th>Hotel</th><th>Check-in</th><th>Check-out</th><th>Card</th></tr>
+              <tr><th>Booking #</th><th>Hotel</th><th>Check-in</th><th>Check-out</th><th>Total Paid</th><th>Card</th></tr>
             </thead>
             <tbody>
               {checkoutResult.bookings.map(b => (
@@ -67,6 +109,7 @@ export default function CartPage() {
                   <td>{b.hotelName}</td>
                   <td>{new Date(b.checkIn).toLocaleDateString()}</td>
                   <td>{new Date(b.checkOut).toLocaleDateString()}</td>
+                  <td style={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}>${b.totalPrice.toFixed(2)}</td>
                   <td style={{ fontFamily: 'monospace' }}>
                     {b.cardNumber
                       ? <span style={{ color: '#dc2626' }}>{b.cardNumber}</span>
@@ -96,6 +139,7 @@ export default function CartPage() {
                   <th>Hotel</th>
                   <th>Check-in</th>
                   <th>Check-out</th>
+                  <th>Total</th>
                   <th>Card</th>
                   <th>Special Requests</th>
                   <th></th>
@@ -107,6 +151,20 @@ export default function CartPage() {
                     <td><strong>{item.hotelName}</strong></td>
                     <td>{new Date(item.checkIn).toLocaleDateString()}</td>
                     <td>{new Date(item.checkOut).toLocaleDateString()}</td>
+                    <td style={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                      {appliedCoupon ? (
+                        <>
+                          <span style={{ textDecoration: 'line-through', color: '#9ca3af', marginRight: '0.4rem' }}>
+                            ${item.totalPrice.toFixed(2)}
+                          </span>
+                          <span style={{ color: '#16a34a' }}>
+                            ${(item.totalPrice * Math.pow(1 - appliedCoupon.discountPercent / 100, appliedCoupon.count)).toFixed(2)}
+                          </span>
+                        </>
+                      ) : (
+                        `$${item.totalPrice.toFixed(2)}`
+                      )}
+                    </td>
                     <td style={{ fontFamily: 'monospace' }}>
                       {item.cardNumber
                         ? <span style={{ color: '#dc2626' }}>{item.cardNumber}</span>
@@ -125,36 +183,68 @@ export default function CartPage() {
             </table>
           </div>
 
+          {(() => {
+            const subtotal = cart.items.reduce((sum, i) => sum + i.totalPrice, 0)
+            const factor = appliedCoupon ? Math.pow(1 - appliedCoupon.discountPercent / 100, appliedCoupon.count) : 1
+            const total = subtotal * factor
+            const discount = subtotal - total
+            return (
+              <div style={{ textAlign: 'right', padding: '0.75rem 1rem', fontSize: '0.95rem', lineHeight: '1.8' }}>
+                <div>Subtotal: ${subtotal.toFixed(2)}</div>
+                {appliedCoupon && (
+                  <div style={{ color: '#16a34a' }}>
+                    {appliedCoupon.count > 1
+                      ? `Discount (${appliedCoupon.code} × ${appliedCoupon.count} — ${appliedCoupon.discountPercent}% each, compounded): −$${discount.toFixed(2)}`
+                      : `Discount (${appliedCoupon.code} — ${appliedCoupon.discountPercent}% off): −$${discount.toFixed(2)}`}
+                  </div>
+                )}
+                <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>Total: ${total.toFixed(2)}</div>
+              </div>
+            )
+          })()}
+
           <div className="card" style={{ marginTop: '1.5rem' }}>
             <h2 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Checkout</h2>
             <div className="xss-hint" style={{ marginBottom: '0.75rem' }}>
-              <strong>Workshop tip:</strong> Apply coupon <code>SAVE10</code> (1 use) or <code>SUMMER20</code> (3 uses).
-              In <em>Vulnerable</em> mode, fire two concurrent checkout requests with the same coupon — both succeed and the coupon is over-redeemed.
-              In <em>Fixed</em> mode the server uses an atomic SQL UPDATE, so only one request wins.
+              <strong>Workshop tip (Race Condition — TOCTOU):</strong> Coupon <code>SAVE10</code> allows only 1 use.
+              In <em>Vulnerable</em> mode, send two concurrent <code>POST /api/coupons/redeem</code> requests before either completes —
+              both pass the "uses remaining" check before either writes, so both return <code>200 OK</code> and the use count exceeds the limit.
+              The second request should have returned <code>409 Conflict</code>.
+              In <em>Fixed</em> mode the server uses an atomic SQL UPDATE, so only one request wins and the second correctly gets <code>409</code>.
             </div>
-            {checkoutError && <div className="error-msg" style={{ marginBottom: '0.75rem' }}>{checkoutError}</div>}
-            <form onSubmit={handleCheckout} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
-              <div className="form-group" style={{ flex: 1, margin: 0 }}>
-                <label>Coupon code (optional)</label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+
+            {appliedCoupon ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', padding: '0.6rem 1rem', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '6px' }}>
+                <span style={{ color: '#16a34a', fontWeight: 600, flex: 1 }}>
+                  {appliedCoupon.code} — {appliedCoupon.discountPercent}% off
+                  {appliedCoupon.count > 1 && <span style={{ color: '#dc2626' }}> × {appliedCoupon.count} (race condition!)</span>}
+                </span>
+                <button type="button" onClick={handleRemoveCoupon}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: '0.85rem', textDecoration: 'underline' }}>
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleApplyCoupon} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ flex: 1, margin: 0 }}>
+                  <label>Coupon code (optional)</label>
                   <input
                     type="text"
                     placeholder="e.g. SAVE10"
-                    value={couponCode}
-                    onChange={e => setCouponCode(e.target.value)}
-                    style={{ flex: 1 }}
+                    value={couponInput}
+                    onChange={e => { setCouponInput(e.target.value); setCouponError('') }}
                   />
-                  {couponCode && (
-                    <button
-                      type="button"
-                      onClick={() => setCouponCode('')}
-                      style={{ padding: '0.4rem 0.75rem', background: 'none', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', color: '#666' }}
-                    >
-                      Clear
-                    </button>
-                  )}
                 </div>
-              </div>
+                <button type="submit" disabled={applyingCoupon || !couponInput.trim()}
+                  style={{ padding: '0.5rem 1.25rem', border: '1px solid #1d4ed8', borderRadius: '6px', background: 'white', color: '#1d4ed8', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                  {applyingCoupon ? 'Checking...' : 'Apply'}
+                </button>
+              </form>
+            )}
+            {couponError && <div className="error-msg" style={{ marginBottom: '0.75rem' }}>{couponError}</div>}
+
+            {checkoutError && <div className="error-msg" style={{ marginBottom: '0.75rem' }}>{checkoutError}</div>}
+            <form onSubmit={handleCheckout}>
               <button type="submit" className="btn-primary" disabled={checkingOut}>
                 {checkingOut ? 'Processing...' : 'Checkout'}
               </button>

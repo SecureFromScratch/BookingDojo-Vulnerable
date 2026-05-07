@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api, type AuditLog } from '../api/client'
-import { useAuth } from '../contexts/AuthContext'
-
 export default function AuditLogsPage() {
-  const { user } = useAuth()
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')

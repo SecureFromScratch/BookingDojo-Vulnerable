@@ -14,6 +14,13 @@ public class BffProxyController : ControllerBase
         _httpClientFactory = httpClientFactory;
     }
 
+    // Endpoints that don't require a login cookie
+    private static readonly HashSet<string> _publicPaths = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "auth/forgot-password",
+        "auth/reset-password",
+    };
+
     [HttpGet]
     [HttpPost]
     [HttpPut]
@@ -22,12 +29,13 @@ public class BffProxyController : ControllerBase
     public async Task<IActionResult> Proxy(string path)
     {
         var token = Request.Cookies[CookieName];
-        if (string.IsNullOrEmpty(token))
+        if (string.IsNullOrEmpty(token) && !_publicPaths.Contains(path))
             return Unauthorized();
 
         var client = _httpClientFactory.CreateClient("api");
-        client.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         var targetUrl = $"/api/{path}";
         if (Request.QueryString.HasValue)
