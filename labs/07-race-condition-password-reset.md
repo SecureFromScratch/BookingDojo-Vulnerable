@@ -75,12 +75,12 @@ TOKEN="a3f8c1d2e9b04f67..."
 # First use — succeeds
 curl -s -X POST http://localhost:5001/bff/auth/reset-password \
   -H "Content-Type: application/json" \
-  -d "{\"token\":\"$TOKEN\",\"newPassword\":\"NewPass1234!\"}" | jq .
+  -d "$(printf '{"token":"%s","newPassword":"NewPass1234!"}' "$TOKEN")" | jq .
 
 # Second use with the same token — rejected
 curl -s -X POST http://localhost:5001/bff/auth/reset-password \
   -H "Content-Type: application/json" \
-  -d "{\"token\":\"$TOKEN\",\"newPassword\":\"AnotherPass!\"}" | jq .
+  -d "$(printf '{"token":"%s","newPassword":"AnotherPass!"}' "$TOKEN")" | jq .
 ```
 
 Expected: first returns `200 OK`, second returns `400 Bad Request`:
@@ -140,11 +140,11 @@ echo "Token: $TOKEN"
 
 curl -s -X POST http://localhost:5001/bff/auth/reset-password \
   -H "Content-Type: application/json" \
-  -d "{\"token\":\"$TOKEN\",\"newPassword\":\"Attacker1234!\"}" | jq . &
+  -d "$(printf '{"token":"%s","newPassword":"Attacker1234!"}' "$TOKEN")" | jq . &
 
 curl -s -X POST http://localhost:5001/bff/auth/reset-password \
   -H "Content-Type: application/json" \
-  -d "{\"token\":\"$TOKEN\",\"newPassword\":\"Victim5678!\"}" | jq . &
+  -d "$(printf '{"token":"%s","newPassword":"Victim5678!"}' "$TOKEN")" | jq . &
 
 wait
 ```
@@ -176,7 +176,7 @@ TOKEN=$(curl -s -X POST http://localhost:5001/bff/auth/forgot-password \
 
 curl -s -X POST http://localhost:5001/bff/auth/reset-password \
   -H "Content-Type: application/json" \
-  -d "{\"token\":\"$TOKEN\",\"newPassword\":\"Partner1234!\"}" | jq .
+  -d "$(printf '{"token":"%s","newPassword":"Partner1234!"}' "$TOKEN")" | jq .
 ```
 
 ---
@@ -198,11 +198,11 @@ TOKEN=$(curl -s -X POST http://localhost:5001/bff/auth/forgot-password \
 
 curl -s -X POST http://localhost:5001/bff/auth/reset-password \
   -H "Content-Type: application/json" \
-  -d "{\"token\":\"$TOKEN\",\"newPassword\":\"Attacker1234!\"}" | jq . &
+  -d "$(printf '{"token":"%s","newPassword":"Attacker1234!"}' "$TOKEN")" | jq . &
 
 curl -s -X POST http://localhost:5001/bff/auth/reset-password \
   -H "Content-Type: application/json" \
-  -d "{\"token\":\"$TOKEN\",\"newPassword\":\"Victim5678!\"}" | jq . &
+  -d "$(printf '{"token":"%s","newPassword":"Victim5678!"}' "$TOKEN")" | jq . &
 
 wait
 ```
