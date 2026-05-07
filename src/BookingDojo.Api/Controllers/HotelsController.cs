@@ -38,7 +38,7 @@ public class HotelsController : ControllerBase
         var hotels = await query
             .Where(h => h.IsActive)
             .OrderBy(h => h.Name)
-            .Select(h => new HotelDto(h.Id, h.PartnerId, h.Partner!.Name, h.Name, h.Location, h.Description, h.IsActive, h.CreatedAt))
+            .Select(h => new HotelDto(h.Id, h.PartnerId, h.Partner!.Name, h.Name, h.Location, h.Description, h.PricePerNight, h.IsActive, h.CreatedAt))
             .ToListAsync();
 
         return Ok(hotels);
@@ -51,7 +51,7 @@ public class HotelsController : ControllerBase
             .Include(h => h.Partner)
             .Where(h => h.IsActive)
             .OrderBy(h => h.Name)
-            .Select(h => new HotelDto(h.Id, h.PartnerId, h.Partner!.Name, h.Name, h.Location, h.Description, h.IsActive, h.CreatedAt))
+            .Select(h => new HotelDto(h.Id, h.PartnerId, h.Partner!.Name, h.Name, h.Location, h.Description, h.PricePerNight, h.IsActive, h.CreatedAt))
             .ToListAsync();
 
         return Ok(hotels);
@@ -83,12 +83,16 @@ public class HotelsController : ControllerBase
         if (partner == null || !partner.IsActive)
             return BadRequest(new { message = "Partner not found or inactive" });
 
+        if (request.PricePerNight <= 0)
+            return BadRequest(new { message = "PricePerNight must be greater than zero" });
+
         var hotel = new Hotel
         {
             PartnerId = partnerId,
             Name = request.Name,
             Location = request.Location,
             Description = request.Description,
+            PricePerNight = request.PricePerNight,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
@@ -103,6 +107,6 @@ public class HotelsController : ControllerBase
             HttpContext.Connection.RemoteIpAddress?.ToString());
 
         return CreatedAtAction(nameof(GetHotels), new { id = hotel.Id },
-            new HotelDto(hotel.Id, hotel.PartnerId, partner.Name, hotel.Name, hotel.Location, hotel.Description, hotel.IsActive, hotel.CreatedAt));
+            new HotelDto(hotel.Id, hotel.PartnerId, partner.Name, hotel.Name, hotel.Location, hotel.Description, hotel.PricePerNight, hotel.IsActive, hotel.CreatedAt));
     }
 }

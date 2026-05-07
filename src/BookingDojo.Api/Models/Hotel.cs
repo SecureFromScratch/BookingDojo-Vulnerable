@@ -8,6 +8,7 @@ public class Hotel
     public string Name { get; set; } = string.Empty;
     public string Location { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    public decimal PricePerNight { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

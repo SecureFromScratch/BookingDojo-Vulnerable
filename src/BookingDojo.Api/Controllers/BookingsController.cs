@@ -40,6 +40,9 @@ public class BookingsController : ControllerBase
 
         var (lastFour, storedCardNumber, cardToken) = Tokenize(request.CardNumber);
 
+        var nights = (int)(request.CheckOut - request.CheckIn).TotalDays;
+        var totalPrice = Math.Round(hotel.PricePerNight * nights, 2);
+
         var booking = new Booking
         {
             UserId          = userId,
@@ -51,6 +54,7 @@ public class BookingsController : ControllerBase
             CardNumber      = storedCardNumber,
             CardToken       = cardToken,
             SpecialRequests = request.SpecialRequests,
+            TotalPrice      = totalPrice,
             CreatedAt       = DateTime.UtcNow
         };
 
@@ -113,7 +117,7 @@ public class BookingsController : ControllerBase
             // q is concatenated directly into raw SQL — injectable.
             // No LIMIT clause: every matching row is read into memory.
             var sql = "SELECT b.\"Id\", b.\"UserId\", b.\"Username\", b.\"HotelId\", b.\"CardLastFour\"," +
-                      " b.\"CheckIn\", b.\"CheckOut\", b.\"SpecialRequests\", b.\"CreatedAt\"," +
+                      " b.\"CheckIn\", b.\"CheckOut\", b.\"SpecialRequests\", b.\"TotalPrice\", b.\"CreatedAt\"," +
                       " h.\"Name\" AS \"HotelName\"" +
                       " FROM bookingdojo.\"Bookings\" b" +
                       " JOIN bookingdojo.\"Hotels\" h ON b.\"HotelId\" = h.\"Id\"" +
@@ -144,6 +148,7 @@ public class BookingsController : ControllerBase
                         null, // CardToken
                         reader.IsDBNull(reader.GetOrdinal("SpecialRequests"))
                             ? "" : reader.GetString(reader.GetOrdinal("SpecialRequests")),
+                        reader.GetDecimal(reader.GetOrdinal("TotalPrice")),
                         reader.GetDateTime(reader.GetOrdinal("CreatedAt"))
                     ));
                 }
@@ -234,5 +239,5 @@ public class BookingsController : ControllerBase
     private static BookingDto ToDto(Booking b, string hotelName) => new(
         b.Id, b.UserId, b.Username, b.HotelId, hotelName,
         b.CheckIn, b.CheckOut, b.CardLastFour, b.CardNumber, b.CardToken,
-        b.SpecialRequests, b.CreatedAt);
+        b.SpecialRequests, b.TotalPrice, b.CreatedAt);
 }

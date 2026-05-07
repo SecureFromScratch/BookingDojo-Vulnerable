@@ -21,10 +21,11 @@ public class DataSeeder
         var schemaStale = false;
         try
         {
-            await _context.Bookings.FirstOrDefaultAsync();
+            await _context.Bookings.SumAsync(b => b.TotalPrice);
+            await _context.Hotels.SumAsync(h => h.PricePerNight);
             await _context.Coupons.FirstOrDefaultAsync();
             await _context.PasswordResetTokens.FirstOrDefaultAsync();
-            await _context.Carts.FirstOrDefaultAsync();
+            await _context.Carts.SumAsync(c => c.AppliedCouponCount);
             await _context.CartItems.FirstOrDefaultAsync();
             await _context.MfaChallenges.FirstOrDefaultAsync();
         }
@@ -73,16 +74,16 @@ public class DataSeeder
         var beachParadiseId  = Guid.NewGuid();
         var alpineLodgeId    = Guid.NewGuid();
         _context.Hotels.AddRange(
-            new Hotel { Id = grandSunshineId, PartnerId = sunshineId, Name = "Grand Sunshine Hotel",  Location = "Paris, France",      Description = "Luxury hotel in the heart of Paris",    IsActive = true, CreatedAt = DateTime.UtcNow.AddDays(-10) },
-            new Hotel { Id = beachParadiseId, PartnerId = sunshineId, Name = "Beach Paradise Resort", Location = "Barcelona, Spain",   Description = "Beachfront resort with stunning views",  IsActive = true, CreatedAt = DateTime.UtcNow.AddDays(-8)  },
-            new Hotel { Id = alpineLodgeId,   PartnerId = mountainId, Name = "Alpine Lodge",          Location = "Innsbruck, Austria", Description = "Cosy mountain lodge for winter sports",  IsActive = true, CreatedAt = DateTime.UtcNow.AddDays(-5)  }
+            new Hotel { Id = grandSunshineId, PartnerId = sunshineId, Name = "Grand Sunshine Hotel",  Location = "Paris, France",      Description = "Luxury hotel in the heart of Paris",    PricePerNight = 250m, IsActive = true, CreatedAt = DateTime.UtcNow.AddDays(-10) },
+            new Hotel { Id = beachParadiseId, PartnerId = sunshineId, Name = "Beach Paradise Resort", Location = "Barcelona, Spain",   Description = "Beachfront resort with stunning views",  PricePerNight = 180m, IsActive = true, CreatedAt = DateTime.UtcNow.AddDays(-8)  },
+            new Hotel { Id = alpineLodgeId,   PartnerId = mountainId, Name = "Alpine Lodge",          Location = "Innsbruck, Austria", Description = "Cosy mountain lodge for winter sports",  PricePerNight = 120m, IsActive = true, CreatedAt = DateTime.UtcNow.AddDays(-5)  }
         );
 
         // --- Bookings: IDOR lab (must be first — IDs #1 and #2 matter for the lab) ---
         // admin owns booking #1 (card 1234), partner owns booking #2 (card 4242).
         _context.Bookings.AddRange(
-            new Booking { UserId = adminId,   Username = "admin",   HotelId = grandSunshineId, CheckIn = DateTime.UtcNow.AddDays(10), CheckOut = DateTime.UtcNow.AddDays(14), CardLastFour = "1234", CardNumber = "4111111111111234", SpecialRequests = "High floor, away from elevator", CreatedAt = DateTime.UtcNow.AddDays(-2) },
-            new Booking { UserId = partnerId, Username = "partner", HotelId = grandSunshineId, CheckIn = DateTime.UtcNow.AddDays(20), CheckOut = DateTime.UtcNow.AddDays(23), CardLastFour = "4242", CardNumber = "5500005555554242", SpecialRequests = "Vegan breakfast, late checkout",  CreatedAt = DateTime.UtcNow.AddDays(-1) }
+            new Booking { UserId = adminId,   Username = "admin",   HotelId = grandSunshineId, CheckIn = DateTime.UtcNow.AddDays(10), CheckOut = DateTime.UtcNow.AddDays(14), CardLastFour = "1234", CardNumber = "4111111111111234", SpecialRequests = "High floor, away from elevator", TotalPrice = 250m * 4, CreatedAt = DateTime.UtcNow.AddDays(-2) },
+            new Booking { UserId = partnerId, Username = "partner", HotelId = grandSunshineId, CheckIn = DateTime.UtcNow.AddDays(20), CheckOut = DateTime.UtcNow.AddDays(23), CardLastFour = "4242", CardNumber = "5500005555554242", SpecialRequests = "Vegan breakfast, late checkout",  TotalPrice = 250m * 3, CreatedAt = DateTime.UtcNow.AddDays(-1) }
         );
 
         // --- Bookings: resource consumption lab (210 bookings for partner) ----

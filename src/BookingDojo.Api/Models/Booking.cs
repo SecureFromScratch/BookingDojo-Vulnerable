@@ -24,5 +24,7 @@ public class Booking
 
     public string SpecialRequests { get; set; } = string.Empty;
 
+    public decimal TotalPrice { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
