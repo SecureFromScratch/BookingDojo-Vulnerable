@@ -21,6 +21,7 @@ export default function Navbar() {
       {(user?.role === 'AdminUser' || user?.role === 'PartnerUser') && (
         <Link to="/integrations">Integrations</Link>
       )}
+      <Link to="/profile">Profile</Link>
       <span className={`role-badge ${user?.role}`}>{user?.role}</span>
       <span style={{ color: '#aaa', fontSize: '0.85rem' }}>{user?.username}</span>
       <button className="btn-logout" onClick={handleLogout}>Logout</button>

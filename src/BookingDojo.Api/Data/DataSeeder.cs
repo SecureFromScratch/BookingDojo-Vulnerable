@@ -28,6 +28,7 @@ public class DataSeeder
             await _context.Carts.SumAsync(c => c.AppliedCouponCount);
             await _context.CartItems.FirstOrDefaultAsync();
             await _context.MfaChallenges.FirstOrDefaultAsync();
+            await _context.Users.Select(u => u.AvatarUrl).FirstOrDefaultAsync();
         }
         catch { schemaStale = true; }
 

@@ -1,6 +1,8 @@
+using BookingDojo.Api.Authorization;
+
 namespace BookingDojo.Api.Models;
 
-public class Booking
+public class Booking : IOwnedResource
 {
     // Sequential integer — intentionally guessable for the IDOR lab.
     public int Id { get; set; }

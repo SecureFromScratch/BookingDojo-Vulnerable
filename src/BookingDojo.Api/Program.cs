@@ -1,8 +1,10 @@
 using System.Text;
+using BookingDojo.Api.Authorization;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Services;
 using BookingDojo.Api.Workshop;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -25,6 +27,12 @@ builder.Services.AddScoped<DataSeeder>();
 
 // HttpClient for outbound webhook calls (Lab 08 — SSRF)
 builder.Services.AddHttpClient("webhook", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
+// HttpClient for profile avatar URL fetch (Lab 13 — SSRF)
+builder.Services.AddHttpClient("profile", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);
 });
@@ -56,7 +64,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy("ResourceOwner", policy =>
+        policy.Requirements.Add(new ResourceOwnerRequirement())));
+builder.Services.AddSingleton<IAuthorizationHandler, ResourceOwnerAuthorizationHandler>();
 
 // CORS — allow BFF and Vite dev server
 builder.Services.AddCors(options =>
@@ -102,6 +114,7 @@ using (var scope = app.Services.CreateScope())
         await db.Carts.FirstOrDefaultAsync();
         await db.CartItems.FirstOrDefaultAsync();
         await db.MfaChallenges.FirstOrDefaultAsync();
+        await db.Users.Select(u => u.AvatarUrl).FirstOrDefaultAsync();
     }
     catch { schemaStale = true; }
 

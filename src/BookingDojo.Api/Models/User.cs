@@ -11,4 +11,8 @@ public class User
 
     public Guid? PartnerId { get; set; }
     public Partner? Partner { get; set; }
+
+    public string? DisplayName { get; set; }
+    public string? Bio { get; set; }
+    public string? AvatarUrl { get; set; }
 }

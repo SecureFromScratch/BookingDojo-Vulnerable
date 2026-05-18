@@ -1,6 +1,7 @@
 using System.Data;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using BookingDojo.Api.Authorization;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Models;
 using BookingDojo.Api.Workshop;
@@ -211,6 +212,8 @@ public class BookingsController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
+    [Authorize(Policy = "ResourceOwner")]
+    [OwnedResource(typeof(Booking))]
     public async Task<IActionResult> GetBookingById(int id)
     {
         var booking = await _db.Bookings
@@ -219,19 +222,6 @@ public class BookingsController : ControllerBase
 
         if (booking == null)
             return NotFound();
-
-        if (_workshop.Value.BookingIdorAccess == "Vulnerable")
-        {
-            // WORKSHOP: VULNERABLE PATH
-            // No ownership check — any authenticated user can fetch any booking by ID.
-            // Sequential integer IDs make enumeration trivial.
-            return Ok(ToDto(booking, booking.Hotel.Name));
-        }
-
-        // WORKSHOP: FIXED PATH
-        var callerId = Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
-        if (booking.UserId != callerId)
-            return Forbid();
 
         return Ok(ToDto(booking, booking.Hotel.Name));
     }

@@ -141,21 +141,32 @@ The exception is still caught, logged internally (in a real system, to a structu
 
 ---
 
-## Step 5 — Proper error handling architecture
+## Step 5 — How it works at runtime
 
 ```
-Exception thrown
-     │
-     ▼
-Global exception middleware catches it
-     │
-     ├──► Log full details to structured log (Serilog, OpenTelemetry)
-     │    with correlation ID, user ID, request path, timestamp
-     │
-     └──► HTTP response: { "message": "An internal error occurred.", "correlationId": "abc123" }
+GET /bff/debug/throw
+        │
+        ▼
+DebugController.TriggerError()
+        │
+        └─► throws InvalidOperationException("Host=db-replica...Password=Pr0dS3cr3t...")
+                │
+                ▼
+        Global exception middleware catches it
+                │
+                ├─ Vulnerable: returns ex.Message + ex.StackTrace in response body
+                │       │
+                │       └─► 500 { "error": "Host=db-replica...Password=...",
+                │                 "stackTrace": "at DebugController.cs:line 17..." }
+                │               attacker reads credentials, hostnames, file paths
+                │
+                └─ Fixed: logs full details internally, returns generic message
+                        │
+                        └─► 500 { "message": "An internal error occurred." }
+                            full details written to server log only
 ```
 
-The correlation ID lets support look up the full details internally without exposing them to the caller.
+The correlation ID pattern — return a short ID to the caller, log the full details against that ID — lets support trace the error without exposing anything to the caller.
 
 ---
 

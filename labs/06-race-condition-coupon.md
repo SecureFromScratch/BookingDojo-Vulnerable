@@ -197,6 +197,33 @@ Check the cart again — `appliedCouponCount` may be 3–5 (depends on how many 
 
 ---
 
+## Step 5 — How it works at runtime
+
+```
+POST /bff/coupons/redeem (×2 concurrent, SAVE10 MaxUses=1)
+        │
+        ├─ Vulnerable (TOCTOU)
+        │       │
+        │  Req 1: reads UsesCount=0 → 0 < 1 → check passes
+        │  Req 2: reads UsesCount=0 → 0 < 1 → check passes   ← both pass simultaneously
+        │       │
+        │  [500ms race window — both requests are asleep here]
+        │       │
+        │  Req 1: UsesCount++ → SaveChanges → UsesCount=1
+        │  Req 2: UsesCount++ → SaveChanges → UsesCount=2     ← MaxUses violated
+        │       │
+        │       └─► both return 200 OK — coupon redeemed twice
+        │
+        └─ Fixed: atomic UPDATE in DB
+                │
+                ▼
+           UPDATE Coupons SET UsesCount = UsesCount + 1
+           WHERE Code = @code AND UsesCount < MaxUses
+                │
+                ├─ Req 1 wins: 1 row affected → 200 OK
+                └─ Req 2 loses: 0 rows affected → 409 Conflict
+```
+
 ## Step 5 — Apply the fix
 
 In `appsettings.json`:

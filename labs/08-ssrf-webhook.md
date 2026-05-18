@@ -174,6 +174,33 @@ curl -s -b cookies.txt -X POST http://localhost:5001/bff/webhooks/test \
 
 ---
 
+## Step 7 — How it works at runtime
+
+```
+POST /bff/webhooks/test {"url": "http://169.254.169.254/latest/meta-data/"}
+        │
+        ▼
+WebhooksController.TestWebhook(url)
+        │
+        ├─ Vulnerable: no URL validation
+        │       │
+        │       ▼
+        │  HttpClient.PostAsync("http://169.254.169.254/...")
+        │       │
+        │       └─► request originates from the SERVER'S network
+        │           firewall sees: server → internal metadata service (allowed)
+        │           response: IAM role name, credentials, instance config
+        │           returned to attacker in HTTP response body
+        │
+        └─ Fixed: URL validated before fetch
+                │
+                ▼
+           Is scheme HTTPS? Is host public? Is IP non-private?
+                │
+                ├─ fails any check → 400 Bad Request, no outbound request made
+                └─ passes all checks → HttpClient.PostAsync(url) → external only
+```
+
 ## Step 7 — Discussion
 
 | Defence | Description | Limitations |

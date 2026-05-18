@@ -174,6 +174,33 @@ SMS/email to the legitimate user, who would notice the repeated messages.
 
 ---
 
+### How it works at runtime
+
+```
+POST /api/auth/mfa/verify {"code": "XXXX"}  (repeated)
+        │
+        ▼
+MfaController.Verify(code)
+        │
+        ├─ Vulnerable: no attempt counter, no lockout
+        │       │
+        │  attempt 1:  code wrong → 401
+        │  attempt 2:  code wrong → 401
+        │       ...
+        │  attempt N:  code correct → 200 OK, MFA passed
+        │       │
+        │       └─► 10,000 possible codes, ~50s to exhaust at 200 req/s
+        │
+        └─ Fixed: attempt counter per challenge, lockout after 5
+                │
+                ▼
+           attempt 1-4: code wrong → 401, AttemptCount++
+           attempt 5:   code wrong → 429, challenge deleted from DB
+                │
+                └─► attacker must request a new challenge (new OTP sent to user)
+                    brute-force resets to 0 — impossible in practice
+```
+
 ## Key takeaways
 
 | | Vulnerable | Fixed |

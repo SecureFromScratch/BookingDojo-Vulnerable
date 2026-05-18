@@ -178,6 +178,32 @@ if (results.Count > MaxResults)
 }
 ```
 
+### How it works at runtime
+
+```
+GET /api/bookings/search?q=&pageSize=999999
+        │
+        ▼
+SearchBookings(pageSize = 999999)
+        │
+        ├─ Vulnerable: honours caller-supplied pageSize
+        │       │
+        │       ▼
+        │  DB query fetches all 210 matching rows into memory
+        │       │
+        │       └─► if pageSize=999999: all 210 rows returned
+        │           if pageSize omitted: all 210 rows returned
+        │           server memory/CPU proportional to row count
+        │
+        └─ Fixed: server-side cap, caller-supplied pageSize ignored
+                │
+                ▼
+           DB query fetches all rows, then:
+           results.Take(10) → at most 10 returned
+                │
+                └─► { results: [...10 items...], truncated: true }
+```
+
 ---
 
 ## Step 5 — Discussion

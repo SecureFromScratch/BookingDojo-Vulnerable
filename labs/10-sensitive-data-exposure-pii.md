@@ -138,6 +138,32 @@ The token is useless to the attacker — it has no card data. The real system wo
 
 ---
 
+### How it works at runtime
+
+```
+POST /api/bookings (CardNumber = "4111111111111234")
+        │
+        ▼
+BookingsController.CreateBooking()
+        │
+        ├─ Vulnerable: full card number stored in DB
+        │       │
+        │       ▼
+        │  DB: CardNumber = "4111111111111234"
+        │       │
+        │  attacker fetches GET /api/bookings/1 (via IDOR or SQL injection)
+        │       └─► { "cardNumber": "4111111111111234" }  ← full PAN exposed
+        │
+        └─ Fixed: card tokenised at write time, number never stored
+                │
+                ▼
+           DB: CardNumber = null, CardToken = "tok_a3f9c2d1e8b6"
+                │
+        attacker fetches GET /api/bookings/1
+                └─► { "cardNumber": null, "cardToken": "tok_a3f9c2d1e8b6" }
+                    token is opaque — no card data to steal
+```
+
 ## Key takeaways
 
 | Principle | Detail |

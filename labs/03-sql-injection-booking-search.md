@@ -243,6 +243,32 @@ var sql = $"""
 
 ---
 
+## Step 7 — How it works at runtime
+
+```
+GET /api/bookings/search?q=%25' OR '1'='1' --
+        │
+        ▼
+SearchBookings(q = "%' OR '1'='1' --")
+        │
+        ├─ Vulnerable: q interpolated into SQL string
+        │       │
+        │       ▼
+        │  SQL sent to PostgreSQL:
+        │  WHERE "UserId" = '...' AND "Name" ILIKE '%' OR '1'='1' --%'
+        │       │
+        │       └─► OR '1'='1' is always true → all rows returned
+        │
+        └─ Fixed: EF Core LINQ — q never touches SQL
+                │
+                ▼
+           SQL sent to PostgreSQL:
+           WHERE "UserId" = $1          ← userId as typed parameter
+                │
+                └─► q filtered in C# on already-fetched rows
+                    payload matches no hotel name → no extra results
+```
+
 ## Step 7 — Apply the fix
 
 In `appsettings.json`, change the flag:

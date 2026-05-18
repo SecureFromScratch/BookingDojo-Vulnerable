@@ -36,6 +36,35 @@ cd src/bookingdojo-ui && npm run dev
 
 4. Open the forwarded port 5173 in your browser.
 
+## Quick Start (Local)
+
+1. Start PostgreSQL:
+
+```bash
+docker compose up -d
+```
+
+2. Seed the database (creates schema + inserts workshop data):
+
+```bash
+dotnet run --project src/BookingDojo.Api -- --seed-and-exit
+```
+
+3. Start the three services in separate terminals:
+
+```bash
+# Terminal 1 — API (port 5000)
+cd src/BookingDojo.Api && dotnet run
+
+# Terminal 2 — BFF (port 5001)
+cd src/BookingDojo.Bff && dotnet run
+
+# Terminal 3 — UI (port 5173)
+cd src/bookingdojo-ui && npm run dev
+```
+
+4. Open http://localhost:5173 in your browser.
+
 ## Workshop Accounts
 
 | Username | Password | Role |
@@ -68,8 +97,17 @@ Change the value to `"Fixed"` to switch to the secure implementation. Restart th
 
 ## Resetting the Database
 
+To wipe and re-seed while keeping the container running:
+
 ```bash
 bash scripts/reset-db.sh
+```
+
+If you ran `docker compose down -v` (which deletes the volume), re-seed before starting the app:
+
+```bash
+docker compose up -d
+dotnet run --project src/BookingDojo.Api -- --seed-and-exit
 ```
 
 ## Architecture

@@ -105,17 +105,29 @@ You are authenticated as `admin` but are reading `partner`'s payment data.
 
 ## Step 3 — Understand why it works
 
-Open `src/BookingDojo.Api/Controllers/BookingsController.cs` and find `GetBookingById`:
+Open `src/BookingDojo.Api/Authorization/ResourceOwnerRequirement.cs` and find the vulnerable path in the handler:
 
 ```csharp
 if (_workshop.Value.BookingIdorAccess == "Vulnerable")
 {
-    // WORKSHOP: VULNERABLE PATH
-    // No ownership check — any authenticated user can fetch any booking by ID.
-    // Sequential integer IDs make enumeration trivial.
-    return Ok(ToDto(booking, booking.Hotel.Name));
+    // ownership check skipped — every authenticated caller succeeds
+    context.Succeed(requirement);
+    return;
 }
 ```
+
+> **Workshop note:** the `[Authorize(Policy = "ResourceOwner")]` attribute is still present on the action in vulnerable mode because the workshop needs a single codebase with a toggle. In a real vulnerable application there would be no attribute at all — just a plain action with no ownership check:
+>
+> ```csharp
+> [HttpGet("{id:int}")]
+> public async Task<IActionResult> GetBookingById(int id)
+> {
+>     var booking = await _db.Bookings.Include(b => b.Hotel)
+>                                     .FirstOrDefaultAsync(b => b.Id == id);
+>     if (booking == null) return NotFound();
+>     return Ok(ToDto(booking, booking.Hotel.Name));
+> }
+> ```
 
 The server looks up the booking by ID and returns it to **any authenticated user** without checking whether that booking belongs to them. Authentication passed — authorisation was never applied.
 
@@ -133,16 +145,100 @@ Restart the API and re-run the curl command from Step 2.
 
 **Expected result:** `403 Forbidden`.
 
-The fixed code path:
+The fixed code path in `BookingsController.cs`:
 
 ```csharp
-// WORKSHOP: FIXED PATH
-var callerId = Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
-if (booking.UserId != callerId)
-    return Forbid();
+[HttpGet("{id:int}")]
+[Authorize(Policy = "ResourceOwner")]
+[OwnedResource(typeof(Booking))]
+public async Task<IActionResult> GetBookingById(int id)
+{
+    var booking = await _db.Bookings
+        .Include(b => b.Hotel)
+        .FirstOrDefaultAsync(b => b.Id == id);
+
+    if (booking == null)
+        return NotFound();
+
+    return Ok(ToDto(booking, booking.Hotel.Name));
+}
 ```
 
-The server compares the booking's owner against the caller's JWT subject claim. If they don't match, the request is denied before any data is returned.
+The controller contains no ownership logic at all. The `[Authorize(Policy = "ResourceOwner")]` attribute enforces access control before the action body runs. `[OwnedResource(typeof(Booking))]` tells the handler which entity type to load from the route.
+
+### How the authorization flow works at runtime
+
+```
+GET /api/bookings/2
+        │
+        ▼
+[Authorize(Policy = "ResourceOwner")]  ← ASP.NET Core sees this attribute
+        │  looks up policy, finds it requires...
+        ▼
+ResourceOwnerRequirement               ← a token: "ownership must be proven"
+        │  framework finds the handler registered for this requirement...
+        ▼
+ResourceOwnerAuthorizationHandler      ← the actual logic:
+        │  reads id=2 from route
+        │  loads Booking from DB
+        │  compares booking.UserId to JWT sub claim
+        │
+        ├─ match    → context.Succeed() → request continues → action runs
+        └─ no match → nothing called   → framework returns 403
+```
+
+`ResourceOwnerRequirement` is just a label — no logic. `ResourceOwnerAuthorizationHandler` is the logic. The framework matches them: when a policy requires `ResourceOwnerRequirement`, it finds any handler registered for that type and calls it.
+
+The `"ResourceOwner"` policy is backed by `ResourceOwnerAuthorizationHandler` in `Authorization/ResourceOwnerRequirement.cs`:
+
+```csharp
+public class ResourceOwnerAuthorizationHandler : AuthorizationHandler<ResourceOwnerRequirement>
+{
+    private readonly IHttpContextAccessor _http;
+    private readonly IOptions<WorkshopOptions> _workshop;
+
+    protected override async Task HandleRequirementAsync(
+        AuthorizationHandlerContext context,
+        ResourceOwnerRequirement requirement)
+    {
+        if (_workshop.Value.BookingIdorAccess == "Vulnerable")
+        {
+            // WORKSHOP: VULNERABLE PATH — ownership check is absent
+            context.Succeed(requirement);
+            return;
+        }
+
+        // WORKSHOP: FIXED PATH
+        var httpContext = _http.HttpContext!;
+        var meta = httpContext.GetEndpoint()?.Metadata.GetMetadata<OwnedResourceAttribute>();
+        if (meta == null) return;
+
+        if (!httpContext.Request.RouteValues.TryGetValue("id", out var idValue)
+            || !int.TryParse(idValue?.ToString(), out var id))
+            return;
+
+        var db = httpContext.RequestServices.GetRequiredService<BookingDojoDbContext>();
+        var resource = await db.FindAsync(meta.ResourceType, id) as IOwnedResource;
+        if (resource == null) return;
+
+        var sub = context.User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        if (sub != null && Guid.Parse(sub) == resource.UserId)
+            context.Succeed(requirement);
+    }
+}
+```
+
+The handler resolves the resource itself using `IHttpContextAccessor` — reading the route `id` and loading the entity via `DbContext.FindAsync`. Because `Booking` implements `IOwnedResource` (a one-property interface exposing `UserId`), the handler is not coupled to `Booking` specifically: any model that implements the interface and is decorated with `[OwnedResource]` gets the same protection.
+
+The policy and handler are registered once in `Program.cs`:
+
+```csharp
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy("ResourceOwner", policy =>
+        policy.Requirements.Add(new ResourceOwnerRequirement())));
+builder.Services.AddSingleton<IAuthorizationHandler, ResourceOwnerAuthorizationHandler>();
+```
 
 ---
 
@@ -151,7 +247,8 @@ The server compares the booking's owner against the caller's JWT subject claim. 
 | Approach | Secure? | Notes |
 |----------|---------|-------|
 | Switch to GUIDs | ✗ | Obscurity is not access control. GUIDs appear in URLs, logs, and API responses — they leak. |
-| Ownership check (what we did) | ✓ | Correct. Authorisation enforced at the object level, every time. |
+| Inline ownership check | ✓ | Correct, but mixes access control logic with business logic. Easy to forget when adding new endpoints. |
+| Policy-based ownership check (what we did) | ✓ | Correct. Ownership logic lives in one place; any resource that implements `IOwnedResource` gets the same protection automatically. |
 | Role-based admin override | ✓ (optional) | Admins may need to view any booking for support reasons — but that must be an explicit check, not an absent one. |
 | Return 404 instead of 403 | debatable | Hides the resource's existence from attackers. But 403 is more honest during development and easier to debug. |
 

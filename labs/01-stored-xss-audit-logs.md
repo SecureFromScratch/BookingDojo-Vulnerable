@@ -136,6 +136,38 @@ return Ok(logs.Select(l => new AuditLogDto(
 
 `HtmlEncoder.Default.Encode()` converts `<`, `>`, `"`, `'`, and `&` to their HTML entity equivalents (`&lt;`, `&gt;`, etc.), so `<img onerror=...>` becomes the literal text `&lt;img onerror=...&gt;`.
 
+### How it works at runtime
+
+```
+partner creates hotel with <img onerror="alert()"> in description
+        │
+        ▼
+AuditLogService.LogAsync()         ← stores raw HTML string in DB
+        │
+        ▼
+DB: Details = '<img onerror="alert()">'
+        │
+        ▼
+admin views Audit Logs
+        │
+        ▼
+AuditLogsController.GetLogs()
+        │
+        ├─ Vulnerable: returns Details as-is from DB
+        │       │
+        │       ▼
+        │  React: <td dangerouslySetInnerHTML={{ __html: log.details }} />
+        │       │
+        │       └─► browser parses HTML → executes JS → alert fires
+        │
+        └─ Fixed: HtmlEncoder.Encode(Details) before returning
+                │
+                ▼
+           React: <td dangerouslySetInnerHTML={{ __html: log.details }} />
+                │
+                └─► browser displays literal text: &lt;img onerror=...&gt;
+```
+
 ### Fix B: Client-side — remove dangerouslySetInnerHTML
 
 Replace the vulnerable `<td>` in `AuditLogsPage.tsx`:

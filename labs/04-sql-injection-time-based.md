@@ -197,6 +197,35 @@ hashcat -m 3200 hash.txt /usr/share/wordlists/passwords.txt
 
 ---
 
+## Step 6 — How it works at runtime
+
+```
+POST /bff/auth/login {"username": "admin' AND pg_sleep(3)--", "password": "x"}
+        │
+        ▼
+AuthService.LoginAsync()
+        │
+        ├─ Vulnerable: username interpolated into SQL string
+        │       │
+        │       ▼
+        │  SQL sent to PostgreSQL:
+        │  WHERE "Username" = 'admin' AND 1=(SELECT 1 FROM pg_sleep(3))--'
+        │       │
+        │       ├─► PostgreSQL finds admin row, evaluates AND, sleeps 3s
+        │       │   BCrypt.Verify("x", hash) → false → 401
+        │       │
+        │       └─► attacker measures elapsed time → 3s = condition true
+        │           repeat with different conditions to extract data bit by bit
+        │
+        └─ Fixed: EF Core LINQ → parameterised query
+                │
+                ▼
+           SQL: WHERE "Username" = $1
+                │
+                └─► payload is a literal string → no row matches
+                    immediate 401, no sleep, no data leakage
+```
+
 ## Step 6 — Apply the fix
 
 In `appsettings.json`:

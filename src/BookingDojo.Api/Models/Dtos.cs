@@ -69,3 +69,8 @@ public record ForgotPasswordRequest(string Username);
 public record ResetPasswordRequest(string Token, string NewPassword);
 
 public record WebhookTestRequest(string Url);
+
+public record ProfileDto(string Username, string Role, string? DisplayName, string? Bio, string? AvatarUrl);
+public record UpdateProfileRequest(string? DisplayName, string? Bio);
+public record SetAvatarUrlRequest(string Url);
+public record AvatarFetchResponse(string Url, int? StatusCode, string? Body, string? Error);

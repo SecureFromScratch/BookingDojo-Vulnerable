@@ -21,6 +21,9 @@ public class BffProxyController : ControllerBase
         "auth/reset-password",
     };
 
+    // Path prefixes that are never proxied — internal-only endpoints not accessible from the browser
+    private static readonly string[] _blockedPrefixes = ["internal/"];
+
     [HttpGet]
     [HttpPost]
     [HttpPut]
@@ -28,6 +31,9 @@ public class BffProxyController : ControllerBase
     [HttpDelete]
     public async Task<IActionResult> Proxy(string path)
     {
+        if (_blockedPrefixes.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
+            return NotFound();
+
         var token = Request.Cookies[CookieName];
         if (string.IsNullOrEmpty(token) && !_publicPaths.Contains(path))
             return Unauthorized();

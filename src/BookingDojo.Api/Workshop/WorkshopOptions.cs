@@ -118,4 +118,13 @@ public class WorkshopOptions
     ///                opaque token (tok_…). The full number is never persisted or returned.
     /// </summary>
     public string CardPiiStorage { get; set; } = "Fixed";
+
+    /// <summary>
+    /// Lab 13 – SSRF via Profile Avatar URL.
+    /// "Vulnerable" – POST /api/profile/avatar-url fetches any caller-supplied URL server-side
+    ///                and returns the response body. Internal-only endpoints (unreachable from the
+    ///                internet) are exposed to the caller via the server's own HTTP fetch.
+    /// "Fixed"      – Validates URL before fetching: HTTPS only, no private IPs, no localhost.
+    /// </summary>
+    public string ProfileAvatarSsrf { get; set; } = "Fixed";
 }

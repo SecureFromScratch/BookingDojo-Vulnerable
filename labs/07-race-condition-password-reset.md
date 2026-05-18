@@ -211,6 +211,34 @@ curl -s -X POST http://localhost:5001/bff/auth/reset-password \
 
 ---
 
+## Step 5 — How it works at runtime
+
+```
+POST /bff/auth/reset-password (×2 concurrent, same token)
+        │
+        ├─ Vulnerable (TOCTOU)
+        │       │
+        │  Req 1: reads UsedAt=NULL → token valid → check passes
+        │  Req 2: reads UsedAt=NULL → token valid → check passes   ← both pass simultaneously
+        │       │
+        │  [500ms race window — both requests are asleep here]
+        │       │
+        │  Req 1: sets UsedAt=now, sets password="Attacker1234!" → SaveChanges
+        │  Req 2: sets UsedAt=now, sets password="Victim5678!"   → SaveChanges
+        │       │
+        │       └─► both return 200 OK — last write wins the password
+        │           victim's account locked out with attacker-chosen password
+        │
+        └─ Fixed: atomic UPDATE in DB
+                │
+                ▼
+           UPDATE PasswordResetTokens SET UsedAt = @now
+           WHERE Token = @token AND UsedAt IS NULL AND ExpiresAt > @now
+                │
+                ├─ Req 1 wins: 1 row affected → password updated → 200 OK
+                └─ Req 2 loses: 0 rows affected → 409 Conflict, password unchanged
+```
+
 ## Step 5 — Apply the fix
 
 In `appsettings.json`:

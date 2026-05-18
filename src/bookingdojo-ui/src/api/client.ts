@@ -211,6 +211,30 @@ export const api = {
       body: JSON.stringify({ url }),
     }),
 
+  getProfile: () => request<{ username: string; role: string; displayName?: string; bio?: string; avatarUrl?: string }>('/bff/profile'),
+
+  updateProfile: (data: { displayName?: string; bio?: string }) =>
+    request<{ username: string; role: string; displayName?: string; bio?: string; avatarUrl?: string }>('/bff/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  uploadAvatar: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return fetch('/bff/profile/avatar', {
+      method: 'POST',
+      credentials: 'include',
+      body: form,
+    }).then(r => r.json())
+  },
+
+  setAvatarFromUrl: (url: string) =>
+    request<{ url: string; statusCode?: number; body?: string; error?: string; message?: string; avatarUrl?: string }>('/bff/profile/avatar-url', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    }),
+
   triggerError: () =>
     fetch('/bff/debug/throw', { credentials: 'include' })
       .then(res => res.json().catch(() => ({ error: 'Non-JSON response' }))),

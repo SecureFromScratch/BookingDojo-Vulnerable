@@ -48,6 +48,32 @@ info: BookingDojo.Api.Services.AuditLogService[0]
 
 The injected `[CRITICAL]` line looks indistinguishable from a real log entry to a human reading the output. An automated alert on `ROLE_CHANGED` would fire on fabricated data.
 
+### How it works at runtime
+
+```
+POST /api/auth/login {"username": "alice\n[CRITICAL] admin ROLE_CHANGED..."}
+        │
+        ▼
+AuditLogService.LogAsync(username = "alice\n[CRITICAL]...")
+        │
+        ├─ Vulnerable: username interpolated into log message string
+        │       │
+        │       ▼
+        │  ILogger writes to console/file:
+        │  "AUDIT [LOGIN_FAILED] user=alice
+        │   [CRITICAL] admin ROLE_CHANGED..."      ← looks like a real log line
+        │       │
+        │       └─► SIEM alert fires on fabricated event
+        │
+        └─ Fixed: control characters sanitized + structured logging
+                │
+                ▼
+           Sanitize("alice\n[CRITICAL]...") → "alice\\n[CRITICAL]..."
+           _logger.LogInformation("AUDIT {Action} user={Username}...", action, sanitized)
+                │
+                └─► one log line, \n rendered as literal text, no injection
+```
+
 ### The fix
 
 Two changes together close the vulnerability:
@@ -127,6 +153,33 @@ curl -s -X DELETE http://localhost:5000/api/audit-logs/$ENTRY_ID \
 # 4. Confirm it is gone
 curl -s http://localhost:5000/api/audit-logs \
   -H "Authorization: Bearer $TOKEN" | jq '[.[] | .action]'
+```
+
+### How it works at runtime
+
+```
+DELETE /api/audit-logs/{id}  (called by SupportUser)
+        │
+        ▼
+AuditLogsController.DeleteLog(id)
+        │
+        ├─ Vulnerable: [Authorize] only — any authenticated user can delete
+        │       │
+        │       ▼
+        │  entry found → db.AuditLogs.Remove(entry) → SaveChanges
+        │       │
+        │       └─► 204 No Content — entry gone, no trace left in DB
+        │
+        └─ Fixed: role check + immutable secondary record
+                │
+                ▼
+           CallerRole != "AdminUser" → 403 Forbidden (SupportUser blocked)
+                │
+           AdminUser deletes:
+           db.AuditLogs.Remove(entry)
+           AuditLogService.LogAsync("LOG_ENTRY_DELETED", ...)   ← cannot be erased silently
+                │
+                └─► deletion recorded — erasure always leaves a trace
 ```
 
 ### The fix
