@@ -205,8 +205,22 @@ export const api = {
       body: JSON.stringify({ token, newPassword }),
     }),
 
+  getWebhooks: () =>
+    request<{ id: string; url: string; createdAt: string }[]>('/bff/webhooks'),
+
+  registerWebhook: (url: string) =>
+    request<{
+      webhook: { id: string; url: string; createdAt: string }
+      pingStatusCode: string | null
+      pingBody: string | null
+      pingError: string | null
+    }>('/bff/webhooks', { method: 'POST', body: JSON.stringify({ url }) }),
+
+  deleteWebhook: (id: string) =>
+    request<void>(`/bff/webhooks/${id}`, { method: 'DELETE' }),
+
   testWebhook: (url: string) =>
-    request<{ url: string; statusCode?: number; body?: string; error?: string }>('/bff/webhooks/test', {
+    request<{ url: string; statusCode?: string; body?: string; error?: string }>('/bff/webhooks/test', {
       method: 'POST',
       body: JSON.stringify({ url }),
     }),

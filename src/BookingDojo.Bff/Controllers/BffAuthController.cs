@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookingDojo.Bff.Controllers;
@@ -9,21 +11,18 @@ namespace BookingDojo.Bff.Controllers;
 public class BffAuthController : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IConfiguration _config;
-    private const string CookieName = "bd_token";
 
-    public BffAuthController(IHttpClientFactory httpClientFactory, IConfiguration config)
+    public BffAuthController(IHttpClientFactory httpClientFactory)
     {
         _httpClientFactory = httpClientFactory;
-        _config = config;
     }
 
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] JsonElement body)
     {
         var client = _httpClientFactory.CreateClient("api");
-        var content = new StringContent(body.GetRawText(), Encoding.UTF8, "application/json");
-        var response = await client.PostAsync("/api/auth/login", content);
+        var response = await client.PostAsync("/api/auth/login",
+            new StringContent(body.GetRawText(), Encoding.UTF8, "application/json"));
 
         if (!response.IsSuccessStatusCode)
         {
@@ -31,71 +30,54 @@ public class BffAuthController : ControllerBase
             return StatusCode((int)response.StatusCode, JsonSerializer.Deserialize<object>(errorBody));
         }
 
-        var responseBody = await response.Content.ReadAsStringAsync();
-        var loginData = JsonSerializer.Deserialize<JsonElement>(responseBody);
-        var token = loginData.GetProperty("token").GetString()!;
+        var loginData = JsonSerializer.Deserialize<JsonElement>(await response.Content.ReadAsStringAsync());
 
-        Response.Cookies.Append(CookieName, token, new CookieOptions
+        var claims = new List<Claim>
         {
-            HttpOnly = true,
-            Secure = false, // set true in production
-            SameSite = SameSiteMode.Lax,
-            Expires = DateTimeOffset.UtcNow.AddHours(8)
-        });
-
-        // Return user info without the token
-        var result = new
-        {
-            username = loginData.GetProperty("username").GetString(),
-            role = loginData.GetProperty("role").GetString(),
-            partnerId = loginData.TryGetProperty("partnerId", out var pid) ? pid.GetString() : null
+            new(ClaimTypes.Name,  loginData.GetProperty("username").GetString()!),
+            new("access_token",   loginData.GetProperty("token").GetString()!),
+            new("refresh_token",  loginData.GetProperty("refreshToken").GetString()!),
+            new("role",           loginData.GetProperty("role").GetString()!),
         };
 
-        return Ok(result);
+        if (loginData.TryGetProperty("partnerId", out var pid) && pid.ValueKind != JsonValueKind.Null)
+            claims.Add(new("partner_id", pid.GetString()!));
+
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "bff"));
+        await HttpContext.SignInAsync("bff", principal, new AuthenticationProperties
+        {
+            IsPersistent = true,
+            ExpiresUtc   = DateTimeOffset.UtcNow.AddDays(7),
+            AllowRefresh = true
+        });
+
+        return Ok(new
+        {
+            username  = loginData.GetProperty("username").GetString(),
+            role      = loginData.GetProperty("role").GetString(),
+            partnerId = loginData.TryGetProperty("partnerId", out var p) && p.ValueKind != JsonValueKind.Null
+                            ? p.GetString() : null
+        });
     }
 
     [HttpGet("me")]
     public IActionResult Me()
     {
-        var token = Request.Cookies[CookieName];
-        if (string.IsNullOrEmpty(token))
+        if (User.Identity?.IsAuthenticated != true)
             return Unauthorized();
 
-        // Decode JWT payload (no validation needed — the API validates on each proxied request)
-        var parts = token.Split('.');
-        if (parts.Length != 3)
-            return Unauthorized();
-
-        try
+        return Ok(new
         {
-            var payload = parts[1];
-            // Add padding if needed
-            var padded = (payload.Length % 4) switch
-            {
-                2 => payload + "==",
-                3 => payload + "=",
-                _ => payload
-            };
-            var json = Encoding.UTF8.GetString(Convert.FromBase64String(padded));
-            var claims = JsonSerializer.Deserialize<JsonElement>(json);
-
-            return Ok(new
-            {
-                username = claims.TryGetProperty("name", out var name) ? name.GetString() : null,
-                role = claims.TryGetProperty("role", out var role) ? role.GetString() : null,
-                partnerId = claims.TryGetProperty("partner_id", out var pid) ? pid.GetString() : null
-            });
-        }
-        catch
-        {
-            return Unauthorized();
-        }
+            username  = User.Identity.Name,
+            role      = User.FindFirstValue("role"),
+            partnerId = User.FindFirstValue("partner_id")
+        });
     }
 
     [HttpDelete("logout")]
-    public IActionResult Logout()
+    public async Task<IActionResult> Logout()
     {
-        Response.Cookies.Delete(CookieName);
+        await HttpContext.SignOutAsync("bff");
         return NoContent();
     }
 }

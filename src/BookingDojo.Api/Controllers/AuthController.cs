@@ -20,9 +20,9 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        var (success, token, user) = await _authService.LoginAsync(request.Username, request.Password);
+        var (success, jwt, refreshToken, user) = await _authService.LoginAsync(request.Username, request.Password);
 
-        if (!success || token == null || user == null)
+        if (!success || jwt == null || refreshToken == null || user == null)
         {
             await _auditLogService.LogAsync(
                 request.Username,
@@ -39,6 +39,17 @@ public class AuthController : ControllerBase
             $"User {user.Username} logged in successfully with role {user.Role}",
             HttpContext.Connection.RemoteIpAddress?.ToString());
 
-        return Ok(new LoginResponse(token, user.Username, user.Role, user.PartnerId));
+        return Ok(new LoginResponse(jwt, refreshToken, user.Username, user.Role, user.PartnerId));
+    }
+
+    [HttpPost("refresh")]
+    public async Task<IActionResult> Refresh([FromBody] RefreshRequest request)
+    {
+        var (success, jwt, refreshToken, user) = await _authService.RefreshAsync(request.RefreshToken);
+
+        if (!success || jwt == null || refreshToken == null || user == null)
+            return Unauthorized(new { message = "Invalid or expired refresh token" });
+
+        return Ok(new LoginResponse(jwt, refreshToken, user.Username, user.Role, user.PartnerId));
     }
 }

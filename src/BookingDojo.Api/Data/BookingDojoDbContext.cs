@@ -17,6 +17,8 @@ public class BookingDojoDbContext : DbContext
     public DbSet<Cart> Carts => Set<Cart>();
     public DbSet<CartItem> CartItems => Set<CartItem>();
     public DbSet<MfaChallenge> MfaChallenges => Set<MfaChallenge>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Webhook> Webhooks => Set<Webhook>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -113,6 +115,22 @@ public class BookingDojoDbContext : DbContext
             e.HasKey(m => m.Id);
             e.Property(m => m.Code).HasMaxLength(4);
             e.HasIndex(m => m.UserId);
+        });
+
+        modelBuilder.Entity<RefreshToken>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.HasIndex(r => r.Token).IsUnique();
+            e.Property(r => r.Token).HasMaxLength(128);
+            e.HasOne(r => r.User).WithMany().HasForeignKey(r => r.UserId);
+        });
+
+        modelBuilder.Entity<Webhook>(e =>
+        {
+            e.HasKey(w => w.Id);
+            e.Property(w => w.Url).HasMaxLength(2048);
+            e.HasOne(w => w.User).WithMany().HasForeignKey(w => w.UserId);
+            e.HasIndex(w => w.UserId);
         });
     }
 }

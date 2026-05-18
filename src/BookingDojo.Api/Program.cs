@@ -94,8 +94,7 @@ if (args.Contains("--seed-and-exit"))
     return;
 }
 
-// Normal startup: fix schema if stale, then ensure all tables exist.
-// Data seeding is separate (--seed-and-exit) so tests can seed their own fixtures.
+// Normal startup: fix schema if stale, then ensure all tables exist, then auto-seed if empty.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<BookingDojoDbContext>();
@@ -115,6 +114,8 @@ using (var scope = app.Services.CreateScope())
         await db.CartItems.FirstOrDefaultAsync();
         await db.MfaChallenges.FirstOrDefaultAsync();
         await db.Users.Select(u => u.AvatarUrl).FirstOrDefaultAsync();
+        await db.RefreshTokens.FirstOrDefaultAsync();
+        await db.Webhooks.FirstOrDefaultAsync();
     }
     catch { schemaStale = true; }
 
@@ -127,6 +128,11 @@ using (var scope = app.Services.CreateScope())
     }
 
     await db.Database.EnsureCreatedAsync();
+
+    // Auto-seed if the database is empty (e.g. after a schema recreate).
+    // DataSeeder.SeedAsync() is idempotent — it skips if users already exist.
+    var seeder = scope.ServiceProvider.GetRequiredService<DataSeeder>();
+    await seeder.SeedAsync();
 }
 
 if (app.Environment.IsDevelopment())

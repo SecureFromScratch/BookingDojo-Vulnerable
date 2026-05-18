@@ -12,6 +12,7 @@ namespace BookingDojo.Api.Controllers;
 public class InternalSecretController : ControllerBase
 {
     [HttpGet("secret")]
+    [HttpPost("secret")]
     public IActionResult GetSecret()
     {
         return Ok(new

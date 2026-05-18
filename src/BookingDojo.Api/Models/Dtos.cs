@@ -4,9 +4,12 @@ public record LoginRequest(string Username, string Password);
 
 public record LoginResponse(
     string Token,
+    string RefreshToken,
     string Username,
     string Role,
     Guid? PartnerId);
+
+public record RefreshRequest(string RefreshToken);
 
 public record CreateHotelRequest(
     string Name,
@@ -69,6 +72,9 @@ public record ForgotPasswordRequest(string Username);
 public record ResetPasswordRequest(string Token, string NewPassword);
 
 public record WebhookTestRequest(string Url);
+public record RegisterWebhookRequest(string Url);
+public record WebhookDto(Guid Id, string Url, DateTime CreatedAt);
+public record RegisterWebhookResponse(WebhookDto Webhook, string? PingStatusCode, string? PingBody, string? PingError);
 
 public record ProfileDto(string Username, string Role, string? DisplayName, string? Bio, string? AvatarUrl);
 public record UpdateProfileRequest(string? DisplayName, string? Bio);

@@ -1,24 +1,66 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 
-export default function IntegrationsPage() {
-  const [webhookUrl, setWebhookUrl] = useState('')
-  const [webhookResult, setWebhookResult] = useState<object | null>(null)
-  const [webhookError, setWebhookError] = useState('')
-  const [webhookLoading, setWebhookLoading] = useState(false)
+interface Webhook {
+  id: string
+  url: string
+  createdAt: string
+}
 
-  const handleWebhookTest = async (e: React.FormEvent) => {
+export default function IntegrationsPage() {
+  const [webhooks, setWebhooks] = useState<Webhook[]>([])
+  const [newUrl, setNewUrl] = useState('')
+  const [registerResult, setRegisterResult] = useState<object | null>(null)
+  const [registerError, setRegisterError] = useState('')
+  const [registerLoading, setRegisterLoading] = useState(false)
+
+  const [testUrl, setTestUrl] = useState('')
+  const [testResult, setTestResult] = useState<object | null>(null)
+  const [testError, setTestError] = useState('')
+  const [testLoading, setTestLoading] = useState(false)
+
+  useEffect(() => {
+    api.getWebhooks().then(setWebhooks).catch(() => {})
+  }, [])
+
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
-    setWebhookError('')
-    setWebhookResult(null)
-    setWebhookLoading(true)
+    setRegisterError('')
+    setRegisterResult(null)
+    setRegisterLoading(true)
     try {
-      const res = await api.testWebhook(webhookUrl)
-      setWebhookResult(res)
+      const res = await api.registerWebhook(newUrl)
+      setWebhooks(prev => [res.webhook, ...prev])
+      setRegisterResult({ pingStatusCode: res.pingStatusCode, pingBody: res.pingBody, pingError: res.pingError })
+      setNewUrl('')
     } catch (err) {
-      setWebhookError(err instanceof Error ? err.message : 'Request failed')
+      setRegisterError(err instanceof Error ? err.message : 'Request failed')
     } finally {
-      setWebhookLoading(false)
+      setRegisterLoading(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await api.deleteWebhook(id)
+      setWebhooks(prev => prev.filter(w => w.id !== id))
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Delete failed')
+    }
+  }
+
+  const handleTest = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setTestError('')
+    setTestResult(null)
+    setTestLoading(true)
+    try {
+      const res = await api.testWebhook(testUrl)
+      setTestResult(res)
+    } catch (err) {
+      setTestError(err instanceof Error ? err.message : 'Request failed')
+    } finally {
+      setTestLoading(false)
     }
   }
 
@@ -26,39 +68,108 @@ export default function IntegrationsPage() {
     <div>
       <h1 className="page-title">Integrations</h1>
 
-      <div className="card">
-        <h2 style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Webhook Test</h2>
+      {/* ── Registered webhooks ── */}
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <h2 style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Webhooks</h2>
         <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '1rem' }}>
-          Send a test event to your webhook endpoint to verify it is reachable and responding.
-          The server posts a sample <code>booking.created</code> payload to the URL you supply.
+          Register a URL to receive a <code>booking.created</code> event whenever a new booking is made.
+          The server sends a verification ping immediately on registration.
         </p>
         <div className="xss-hint">
-          <strong>Workshop tip:</strong> Try internal URLs such as{' '}
-          <code>http://169.254.169.254/latest/meta-data/</code> (AWS metadata),{' '}
-          <code>http://localhost:5432</code> (database), or{' '}
-          <code>http://localhost:5000/api/auth/login</code> (internal API).
-          In Vulnerable mode the server fetches these on your behalf.
+          <strong>Workshop tip:</strong> In Vulnerable mode the server pings any URL you register —
+          including internal services. Try{' '}
+          <code>http://localhost:5000/api/internal/secret</code> to retrieve credentials the server
+          can reach but the browser cannot.
         </div>
 
-        {webhookError && <div className="error-msg" style={{ marginTop: '0.75rem' }}>{webhookError}</div>}
+        {registerError && <div className="error-msg" style={{ marginTop: '0.75rem' }}>{registerError}</div>}
 
-        <form onSubmit={handleWebhookTest} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', marginTop: '1rem' }}>
+        <form onSubmit={handleRegister} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', marginTop: '1rem' }}>
           <div className="form-group" style={{ flex: 1, margin: 0 }}>
             <label>Webhook URL</label>
             <input
               type="text"
               placeholder="https://your-server.example.com/webhook"
-              value={webhookUrl}
-              onChange={e => setWebhookUrl(e.target.value)}
+              value={newUrl}
+              onChange={e => setNewUrl(e.target.value)}
               required
             />
           </div>
-          <button type="submit" className="btn-primary" disabled={webhookLoading}>
-            {webhookLoading ? 'Testing...' : 'Test Webhook'}
+          <button type="submit" className="btn-primary" disabled={registerLoading}>
+            {registerLoading ? 'Registering...' : 'Register'}
           </button>
         </form>
 
-        {webhookResult && (
+        {registerResult && (
+          <div style={{ marginTop: '1rem' }}>
+            <label style={{ fontSize: '0.85rem', color: '#666' }}>Ping result:</label>
+            <pre style={{
+              background: '#1e1e1e', color: '#d4d4d4', padding: '1rem',
+              borderRadius: 6, fontSize: '0.8rem', overflowX: 'auto',
+              marginTop: '0.5rem', maxHeight: 300, overflowY: 'auto'
+            }}>
+              {JSON.stringify(registerResult, null, 2)}
+            </pre>
+          </div>
+        )}
+
+        {webhooks.length > 0 && (
+          <table style={{ width: '100%', marginTop: '1.25rem', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', color: '#6b7280' }}>URL</th>
+                <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', color: '#6b7280' }}>Registered</th>
+                <th style={{ padding: '0.5rem 0.75rem' }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {webhooks.map(w => (
+                <tr key={w.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                  <td style={{ padding: '0.5rem 0.75rem', wordBreak: 'break-all' }}>{w.url}</td>
+                  <td style={{ padding: '0.5rem 0.75rem', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                    {new Date(w.createdAt).toLocaleDateString()}
+                  </td>
+                  <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
+                    <button
+                      onClick={() => handleDelete(w.id)}
+                      style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* ── Ad-hoc test ── */}
+      <div className="card">
+        <h2 style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Test a URL</h2>
+        <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '1rem' }}>
+          Send a one-off test ping without saving the URL.
+        </p>
+
+        {testError && <div className="error-msg" style={{ marginTop: '0.75rem' }}>{testError}</div>}
+
+        <form onSubmit={handleTest} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
+          <div className="form-group" style={{ flex: 1, margin: 0 }}>
+            <label>URL</label>
+            <input
+              type="text"
+              placeholder="https://your-server.example.com/webhook"
+              value={testUrl}
+              onChange={e => setTestUrl(e.target.value)}
+              required
+            />
+          </div>
+          <button type="submit" className="btn-primary" disabled={testLoading}>
+            {testLoading ? 'Sending...' : 'Send Test'}
+          </button>
+        </form>
+
+        {testResult && (
           <div style={{ marginTop: '1rem' }}>
             <label style={{ fontSize: '0.85rem', color: '#666' }}>Server response:</label>
             <pre style={{
@@ -66,7 +177,7 @@ export default function IntegrationsPage() {
               borderRadius: 6, fontSize: '0.8rem', overflowX: 'auto',
               marginTop: '0.5rem', maxHeight: 300, overflowY: 'auto'
             }}>
-              {JSON.stringify(webhookResult, null, 2)}
+              {JSON.stringify(testResult, null, 2)}
             </pre>
           </div>
         )}

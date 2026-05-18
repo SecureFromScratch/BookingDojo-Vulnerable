@@ -1,6 +1,7 @@
 using System.Data;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Models;
@@ -24,7 +25,7 @@ public class AuthService
         _workshop = workshop;
     }
 
-    public async Task<(bool Success, string? Token, User? User)> LoginAsync(string username, string password)
+    public async Task<(bool Success, string? Jwt, string? RefreshToken, User? User)> LoginAsync(string username, string password)
     {
         User? user;
 
@@ -34,11 +35,13 @@ public class AuthService
             // The username is concatenated directly into raw SQL.
             // The endpoint returns only 200 or 401 — no query data is echoed back.
             //
-            // Timing probe (confirms injection, always sleeps 3s if 'admin' exists):
-            //   username: admin' AND 1=(SELECT 1 FROM pg_sleep(3))--
+            // Username enumeration (sleeps 3s only if 'admin' exists):
+            //   x' OR 1=(SELECT 1 FROM pg_sleep(CASE WHEN
+            //     (SELECT COUNT(*) FROM bookingdojo."Users" WHERE "Username"='admin')>0
+            //     THEN 3 ELSE 0 END))--
             //
-            // Conditional extraction (sleeps 3s when condition is true):
-            //   username: admin' AND 1=(SELECT 1 FROM pg_sleep(
+            // Conditional hash extraction (sleeps 3s when condition is true):
+            //   admin' AND 1=(SELECT 1 FROM pg_sleep(
             //     CASE WHEN SUBSTRING("PasswordHash",1,1)='$' THEN 3 ELSE 0 END))--
             var sql = $"""
                 SELECT "Id", "Username", "PasswordHash", "Role", "PartnerId"
@@ -83,10 +86,63 @@ public class AuthService
         }
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
-            return (false, null, null);
+            return (false, null, null, null);
 
-        var token = GenerateJwt(user);
-        return (true, token, user);
+        var jwt = GenerateJwt(user);
+        var refreshToken = await CreateRefreshTokenAsync(user.Id);
+        return (true, jwt, refreshToken, user);
+    }
+
+    public async Task<(bool Success, string? Jwt, string? RefreshToken, User? User)> RefreshAsync(string refreshToken)
+    {
+        var stored = await _db.RefreshTokens
+            .Include(r => r.User)
+            .FirstOrDefaultAsync(r => r.Token == refreshToken);
+
+        if (stored == null)
+            return (false, null, null, null);
+
+        if (!stored.IsValid)
+        {
+            // Reuse of a revoked token — possible theft. Revoke all sessions for this user.
+            await _db.RefreshTokens
+                .Where(t => t.UserId == stored.UserId && t.RevokedAt == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, DateTime.UtcNow));
+            return (false, null, null, null);
+        }
+
+        // Revoke old token and issue new ones (rotation)
+        stored.RevokedAt = DateTime.UtcNow;
+
+        var newRefreshToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        _db.RefreshTokens.Add(new RefreshToken
+        {
+            Id        = Guid.NewGuid(),
+            UserId    = stored.UserId,
+            Token     = newRefreshToken,
+            ExpiresAt = DateTime.UtcNow.AddDays(7),
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+
+        var jwt = GenerateJwt(stored.User);
+        return (true, jwt, newRefreshToken, stored.User);
+    }
+
+    private async Task<string> CreateRefreshTokenAsync(Guid userId)
+    {
+        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        _db.RefreshTokens.Add(new RefreshToken
+        {
+            Id        = Guid.NewGuid(),
+            UserId    = userId,
+            Token     = token,
+            ExpiresAt = DateTime.UtcNow.AddDays(7),
+            CreatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+        return token;
     }
 
     private string GenerateJwt(User user)
@@ -108,11 +164,12 @@ public class AuthService
         if (user.PartnerId.HasValue)
             claims.Add(new("partner_id", user.PartnerId.Value.ToString()));
 
+        var expirationMinutes = _config.GetValue<int>("BookingDojo:Jwt:ExpirationMinutes", 15);
         var token = new JwtSecurityToken(
             issuer: issuer,
             audience: audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(8),
+            expires: DateTime.UtcNow.AddMinutes(expirationMinutes),
             signingCredentials: creds);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

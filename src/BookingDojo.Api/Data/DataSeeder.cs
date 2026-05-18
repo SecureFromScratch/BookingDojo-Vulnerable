@@ -29,6 +29,8 @@ public class DataSeeder
             await _context.CartItems.FirstOrDefaultAsync();
             await _context.MfaChallenges.FirstOrDefaultAsync();
             await _context.Users.Select(u => u.AvatarUrl).FirstOrDefaultAsync();
+            await _context.RefreshTokens.FirstOrDefaultAsync();
+            await _context.Webhooks.FirstOrDefaultAsync();
         }
         catch { schemaStale = true; }
 
@@ -81,10 +83,12 @@ public class DataSeeder
         );
 
         // --- Bookings: IDOR lab (must be first — IDs #1 and #2 matter for the lab) ---
-        // admin owns booking #1 (card 1234), partner owns booking #2 (card 4242).
+        // admin owns booking #1 (Alpine Lodge, card 1234), partner owns booking #2 (Beach Paradise, card 4242).
+        // Different hotels so the SQL injection lab can demonstrate the user-ownership filter clearly:
+        // partner searching "Beach" sees their own booking; searching "Alpine" returns nothing until injected.
         _context.Bookings.AddRange(
-            new Booking { UserId = adminId,   Username = "admin",   HotelId = grandSunshineId, CheckIn = DateTime.UtcNow.AddDays(10), CheckOut = DateTime.UtcNow.AddDays(14), CardLastFour = "1234", CardNumber = "4111111111111234", SpecialRequests = "High floor, away from elevator", TotalPrice = 250m * 4, CreatedAt = DateTime.UtcNow.AddDays(-2) },
-            new Booking { UserId = partnerId, Username = "partner", HotelId = grandSunshineId, CheckIn = DateTime.UtcNow.AddDays(20), CheckOut = DateTime.UtcNow.AddDays(23), CardLastFour = "4242", CardNumber = "5500005555554242", SpecialRequests = "Vegan breakfast, late checkout",  TotalPrice = 250m * 3, CreatedAt = DateTime.UtcNow.AddDays(-1) }
+            new Booking { UserId = adminId,   Username = "admin",   HotelId = alpineLodgeId,   CheckIn = DateTime.UtcNow.AddDays(10), CheckOut = DateTime.UtcNow.AddDays(14), CardLastFour = "1234", CardNumber = "4111111111111234", SpecialRequests = "High floor, away from elevator", TotalPrice = 120m * 4, CreatedAt = DateTime.UtcNow.AddDays(-2) },
+            new Booking { UserId = partnerId, Username = "partner", HotelId = beachParadiseId,  CheckIn = DateTime.UtcNow.AddDays(20), CheckOut = DateTime.UtcNow.AddDays(23), CardLastFour = "4242", CardNumber = "5500005555554242", SpecialRequests = "Vegan breakfast, late checkout",  TotalPrice = 180m * 3, CreatedAt = DateTime.UtcNow.AddDays(-1) }
         );
 
         // --- Bookings: resource consumption lab (210 bookings for partner) ----

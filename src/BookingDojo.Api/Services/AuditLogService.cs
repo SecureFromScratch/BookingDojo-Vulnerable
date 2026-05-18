@@ -24,7 +24,7 @@ public class AuditLogService
         {
             Timestamp = DateTime.UtcNow,
             UserId    = Guid.Empty,
-            Username  = username,
+            Username  = username.Length > 100 ? username[..100] : username,
             Action    = action,
             Details   = details,
             IpAddress = ipAddress ?? "unknown"
