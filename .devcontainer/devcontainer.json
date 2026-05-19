@@ -1,12 +1,13 @@
 {
   "name": "BookingDojo Workshop",
-  "image": "mcr.microsoft.com/devcontainers/dotnet:8.0-bookworm",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
   "features": {
-    "ghcr.io/devcontainers/features/aws-cli:1": {},
+    "ghcr.io/devcontainers/features/dotnet:2": { "version": "8.0" },
     "ghcr.io/devcontainers/features/node:1": { "version": "lts" },
+    "ghcr.io/devcontainers/features/aws-cli:1": {},
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "version": "latest",
-      "enableNonRootDocker": "true"
+      "moby": true
     }
   },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
