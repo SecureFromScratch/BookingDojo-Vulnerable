@@ -5,8 +5,12 @@ echo "============================================"
 echo " BookingDojo Workshop — Post-Create Setup   "
 echo "============================================"
 
-# Start PostgreSQL and LocalStack via docker-compose
+# Wait for Docker daemon to be ready
 echo ""
+echo "[0/4] Waiting for Docker daemon..."
+until docker info > /dev/null 2>&1; do sleep 1; done
+
+# Start PostgreSQL and LocalStack via docker-compose
 echo "[1/4] Starting PostgreSQL and LocalStack..."
 docker-compose up -d postgres localstack
 
