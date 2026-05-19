@@ -5,10 +5,10 @@ echo "============================================"
 echo " BookingDojo Workshop — Post-Create Setup   "
 echo "============================================"
 
-# Start PostgreSQL via docker-compose
+# Start PostgreSQL and LocalStack via docker-compose
 echo ""
-echo "[1/4] Starting PostgreSQL..."
-docker-compose up -d postgres
+echo "[1/4] Starting PostgreSQL and LocalStack..."
+docker-compose up -d postgres localstack
 
 echo "[2/4] Restoring .NET packages..."
 dotnet restore BookingDojo.sln

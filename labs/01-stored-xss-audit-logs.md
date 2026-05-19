@@ -23,6 +23,8 @@ Your goal: inject a payload that executes JavaScript in the browser of any admin
 
 Stored XSS is considered more dangerous than Reflected XSS because the payload executes automatically for every user who views the affected page, without requiring the victim to click a crafted link.
 
+> **Note on session tokens:** BookingDojo stores the JWT inside an `httpOnly` cookie, so `document.cookie` cannot expose it. XSS payloads here target the UI (defacement, keylogging, redirects) rather than direct token theft. See [docs/jwt.md](../docs/jwt.md) for how the cookie protection works.
+
 ---
 
 ## Setup

@@ -8,4 +8,8 @@
     <AssemblyName>BookingDojo.Bff</AssemblyName>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Amazon.AspNetCore.DataProtection.SSM" Version="4.0.3" />
+  </ItemGroup>
+
 </Project>

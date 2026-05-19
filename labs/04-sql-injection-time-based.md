@@ -30,6 +30,8 @@ By testing conditions character by character, an attacker can reconstruct any st
 
 **What the attacker gains here:** the admin's BCrypt password hash. This column is inaccessible through every other endpoint. Once extracted, it can be cracked offline with hashcat. A password like `Admin1234!` appears in common wordlists and cracks in seconds.
 
+> **Auth flow context:** The login endpoint is on the BFF, which proxies credentials to the API. The API issues a JWT that is encrypted into an `httpOnly` cookie by the BFF — so the JWT itself is never in the browser. See [docs/jwt.md](../docs/jwt.md).
+
 ---
 
 ## Setup

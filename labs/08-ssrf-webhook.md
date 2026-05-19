@@ -30,7 +30,6 @@ Common SSRF entry points: webhook URL fields, image/avatar fetch-by-URL, PDF gen
 
 ```bash
 docker compose up -d
-dotnet run --project src/BookingDojo.Api -- --seed-and-exit
 dotnet run --project src/BookingDojo.Api &
 dotnet run --project src/BookingDojo.Bff &
 cd src/bookingdojo-ui && npm run dev &
@@ -201,7 +200,7 @@ WebhooksController.TestWebhook(url)
                 └─ passes all checks → HttpClient.PostAsync(url) → external only
 ```
 
-## Step 7 — Discussion
+## Step 8 — Discussion
 
 | Defence | Description | Limitations |
 |---------|-------------|-------------|

@@ -30,7 +30,6 @@ This vulnerability is distinct from SQL injection. Even with a perfectly paramet
 
 ```bash
 docker compose up -d
-dotnet run --project src/BookingDojo.Api -- --seed-and-exit
 dotnet run --project src/BookingDojo.Api &
 dotnet run --project src/BookingDojo.Bff &
 cd src/bookingdojo-ui && npm run dev &
@@ -49,7 +48,7 @@ In `src/BookingDojo.Api/appsettings.json`, confirm both flags are Vulnerable:
 
 ## Step 1 — Observe normal UI behaviour
 
-The database is pre-seeded with 212 bookings for `partner`.
+The database is pre-seeded with 211 bookings for `partner` (212 total across all users).
 
 ```bash
 # Log in as partner
@@ -75,12 +74,12 @@ Expected: `{ "count": 10, "truncated": true }` — only 10 returned because the 
 The `pageSize=10` is just a number in the query string. Any HTTP client can change it:
 
 ```bash
-# Attacker bypasses the UI and asks for 500
-time curl -s -b cookies.txt "http://localhost:5001/bff/bookings/search?q=&pageSize=100" \
+# Attacker asks for 999999 — server honours whatever number is sent
+time curl -s -b cookies.txt "http://localhost:5001/bff/bookings/search?q=&pageSize=999999" \
   | jq '{count: (.results | length), truncated}'
 ```
 
-Expected: `{ "count": 212, "truncated": false }` — all 212 bookings returned.
+Expected: `{ "count": 211, "truncated": false }` — all 211 partner bookings returned.
 
 ```bash
 # Or omit pageSize entirely — no cap applied at all
@@ -88,15 +87,15 @@ time curl -s -b cookies.txt "http://localhost:5001/bff/bookings/search?q=" \
   | jq '{count: (.results | length), truncated}'
 ```
 
-Expected: `{ "count": 212, "truncated": false }` — same result.
+Expected: `{ "count": 211, "truncated": false }` — same result.
 
 Measure the response size:
 
 ```bash
-curl -s -b cookies.txt "http://localhost:5001/bff/bookings/search?q=&pageSize=100" | wc -c
+curl -s -b cookies.txt "http://localhost:5001/bff/bookings/search?q=&pageSize=999999" | wc -c
 ```
 
-With 212 bookings the response is roughly 60–100 KB. Scale this to 100 000 bookings and a single bypassed request returns tens of megabytes.
+With 211 bookings the response is roughly 60–100 KB. Scale this to 100 000 bookings and a single bypassed request returns tens of megabytes.
 
 ---
 
@@ -115,7 +114,7 @@ Without the resource cap, this returns every booking in the entire system — al
 
 ---
 
-## Step 3 — Flood with concurrent requests
+## Step 4 — Flood with concurrent requests
 
 Even with only the caller's own bookings, concurrent requests exhaust server resources:
 
@@ -128,7 +127,7 @@ wait
 echo "Done"
 ```
 
-Each request allocates memory for all 200+ booking objects. 50 concurrent requests × 200 objects × ~1 KB each = ~10 MB of live allocations simultaneously — plus the garbage collector pressure, thread pool saturation, and connection pool exhaustion.
+Each request allocates memory for all 211 booking objects. 50 concurrent requests × 211 objects × ~1 KB each = ~10 MB of live allocations simultaneously — plus the garbage collector pressure, thread pool saturation, and connection pool exhaustion.
 
 Monitor memory during the flood:
 
@@ -138,7 +137,7 @@ ps aux | grep BookingDojo.Api | awk '{print $6 " KB RSS"}'
 
 ---
 
-## Step 4 — Apply the fix
+## Step 5 — Apply the fix
 
 In `appsettings.json`:
 
@@ -189,10 +188,10 @@ SearchBookings(pageSize = 999999)
         ├─ Vulnerable: honours caller-supplied pageSize
         │       │
         │       ▼
-        │  DB query fetches all 210 matching rows into memory
+        │  DB query fetches all 211 matching rows into memory
         │       │
-        │       └─► if pageSize=999999: all 210 rows returned
-        │           if pageSize omitted: all 210 rows returned
+        │       └─► if pageSize=999999: all 211 rows returned
+        │           if pageSize omitted: all 211 rows returned
         │           server memory/CPU proportional to row count
         │
         └─ Fixed: server-side cap, caller-supplied pageSize ignored
@@ -206,7 +205,7 @@ SearchBookings(pageSize = 999999)
 
 ---
 
-## Step 5 — Discussion
+## Step 6 — Discussion
 
 | Control | Description | Applied here |
 |---------|-------------|--------------|
@@ -240,7 +239,7 @@ These are separate code paths with separate root causes — and separate fixes.
 - **Fixing injection is not the same as fixing resource abuse.** A perfectly parameterised query with no row limit is still a DoS vector.
 - **Client-controlled limits are not limits.** Any pagination `pageSize` the server honours without a hard cap can be set to `Integer.MAX_VALUE`.
 - **Concurrent requests multiply the impact.** 50 users × unlimited results = unbounded memory regardless of per-user quotas.
-- **The fix is a single server-side constant.** `Take(50)` costs one line of code; the absence of it can take down the server.
+- **The fix is a single server-side constant.** `Take(10)` costs one line of code; the absence of it can take down the server.
 
 ---
 

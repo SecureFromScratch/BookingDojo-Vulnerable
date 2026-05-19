@@ -138,7 +138,7 @@ A `SupportUser` who took a suspicious action can:
 # 1. Log in as SupportUser and capture the token
 TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"support","password":"Support1!"}' | jq -r '.token')
+  -d '{"username":"support","password":"Support1234!"}' | jq -r '.token')
 
 # 2. Find your own audit log entry (LOGIN_SUCCESS)
 ENTRY_ID=$(curl -s http://localhost:5000/api/audit-logs \

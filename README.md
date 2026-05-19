@@ -2,68 +2,25 @@
 
 A deliberately vulnerable travel booking platform for secure coding workshops.
 
-BookingDojo is designed for use in GitHub Codespaces. Each exercise is toggled by a configuration flag — both the vulnerable and fixed implementations live in the same codebase.
-
-## Stack
-
-| Component | Technology |
-|-----------|-----------|
-| API | .NET 8 Web API + EF Core + PostgreSQL |
-| BFF | .NET 8 Web API (cookie proxy) |
-| UI | React 18 + TypeScript + Vite |
-| Database | PostgreSQL 16 |
-| Dev Environment | GitHub Codespaces + Docker |
-
-## Quick Start (GitHub Codespaces)
-
-1. Open this repository in GitHub Codespaces
-2. The devcontainer will automatically:
-   - Start PostgreSQL
-   - Restore NuGet packages and npm dependencies
-   - Seed the database with workshop data
-3. Start the three services:
-
-```bash
-# Terminal 1 — API (port 5000)
-cd src/BookingDojo.Api && dotnet run
-
-# Terminal 2 — BFF (port 5001)
-cd src/BookingDojo.Bff && dotnet run
-
-# Terminal 3 — UI (port 5173)
-cd src/bookingdojo-ui && npm run dev
-```
-
-4. Open the forwarded port 5173 in your browser.
+Each exercise is toggled by a configuration flag — both the vulnerable and fixed implementations live in the same codebase.
 
 ## Quick Start (Local)
 
-1. Start PostgreSQL:
-
 ```bash
+# Start PostgreSQL and LocalStack
 docker compose up -d
-```
 
-2. Seed the database (creates schema + inserts workshop data):
-
-```bash
-dotnet run --project src/BookingDojo.Api -- --seed-and-exit
-```
-
-3. Start the three services in separate terminals:
-
-```bash
 # Terminal 1 — API (port 5000)
-cd src/BookingDojo.Api && dotnet run
+dotnet run --project src/BookingDojo.Api
 
 # Terminal 2 — BFF (port 5001)
-cd src/BookingDojo.Bff && dotnet run
+dotnet run --project src/BookingDojo.Bff
 
 # Terminal 3 — UI (port 5173)
 cd src/bookingdojo-ui && npm run dev
 ```
 
-4. Open http://localhost:5173 in your browser.
+Open http://localhost:5173 in your browser. The database is seeded automatically on first start.
 
 ## Workshop Accounts
 
@@ -73,15 +30,33 @@ cd src/bookingdojo-ui && npm run dev
 | partner | Partner1234! | PartnerUser |
 | support | Support1234! | SupportUser |
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/architecture.md) | Stack overview, BFF pattern, workshop flags reference |
+| [JWT & Session Security](docs/jwt.md) | How tokens are issued, encrypted, rotated, and persisted |
+
 ## Exercises
 
-| # | Exercise | Configuration Key | Default |
-|---|----------|------------------|---------|
-| 01 | [Stored XSS in Audit Logs](labs/01-stored-xss-audit-logs.md) | `BookingDojo:Workshop:StoredXssAuditLogs` | `Vulnerable` |
+| # | Exercise | OWASP | Flag |
+|---|----------|-------|------|
+| 01 | [Stored XSS in Audit Logs](labs/01-stored-xss-audit-logs.md) | A03 XSS | `StoredXssAuditLogs` |
+| 02 | [IDOR on Bookings](labs/02-idor-bookings.md) | A01 Broken Access Control | `BookingIdorAccess` |
+| 03 | [SQL Injection — Booking Search](labs/03-sql-injection-booking-search.md) | A03 Injection | `BookingSearchSqlInjection` |
+| 04 | [Time-Based Blind SQL Injection — Login](labs/04-sql-injection-time-based.md) | A03 Injection | `LoginSqlInjection` |
+| 05 | [Uncontrolled Resource Consumption](labs/05-uncontrolled-resource-consumption.md) | A05 Security Misconfiguration | `BookingSearchResourceConsumption` |
+| 06 | [Race Condition — Coupon Redemption](labs/06-race-condition-coupon.md) | A04 Insecure Design | `CouponRedemptionRaceCondition` |
+| 07 | [Race Condition — Password Reset](labs/07-race-condition-password-reset.md) | A04 Insecure Design | `PasswordResetRaceCondition` |
+| 08 | [SSRF — Webhook](labs/08-ssrf-webhook.md) | A10 SSRF | `WebhookSsrf` |
+| 09 | [Exception Information Disclosure](labs/09-exception-information-disclosure.md) | A05 Security Misconfiguration | `ExceptionDetailDisclosure` |
+| 10 | [Sensitive Data Exposure — PII Storage](labs/10-sensitive-data-exposure-pii.md) | A02 Cryptographic Failures | `CardPiiStorage` |
+| 11 | [MFA Brute Force](labs/11-mfa-brute-force.md) | A07 Auth Failures | `MfaBruteForceProtection` |
+| 12 | [Audit Log Manipulation](labs/12-audit-log-manipulation.md) | A09 Logging Failures | `LogInjection` / `AuditLogDeletion` |
 
 ## Toggling an Exercise
 
-Edit `src/BookingDojo.Api/appsettings.json`:
+Edit `src/BookingDojo.Api/appsettings.json` under `BookingDojo:Workshop`:
 
 ```json
 {
@@ -93,34 +68,10 @@ Edit `src/BookingDojo.Api/appsettings.json`:
 }
 ```
 
-Change the value to `"Fixed"` to switch to the secure implementation. Restart the API after changing.
+Set to `"Vulnerable"` to enable the attack surface, `"Fixed"` to switch to the secure implementation. Restart the API after changing. See [docs/architecture.md](docs/architecture.md) for the full flags reference.
 
 ## Resetting the Database
-
-To wipe and re-seed while keeping the container running:
 
 ```bash
 bash scripts/reset-db.sh
 ```
-
-If you ran `docker compose down -v` (which deletes the volume), re-seed before starting the app:
-
-```bash
-docker compose up -d
-dotnet run --project src/BookingDojo.Api -- --seed-and-exit
-```
-
-## Architecture
-
-```
-Browser (5173)
-    │
-    │  /bff/* (Vite proxy)
-    ▼
-BFF (5001)  ──────────────►  API (5000)
-  httpOnly cookie              JWT validation
-  bd_token                     EF Core
-                               PostgreSQL (5432)
-```
-
-The BFF pattern keeps the JWT out of browser storage. The React app never sees the token directly.

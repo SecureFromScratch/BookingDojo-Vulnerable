@@ -27,7 +27,6 @@ Password reset tokens are a high-value target: a single stolen token can grant a
 
 ```bash
 docker compose up -d
-dotnet run --project src/BookingDojo.Api -- --seed-and-exit
 dotnet run --project src/BookingDojo.Api &
 dotnet run --project src/BookingDojo.Bff &
 cd src/bookingdojo-ui && npm run dev &
@@ -239,7 +238,7 @@ POST /bff/auth/reset-password (×2 concurrent, same token)
                 └─ Req 2 loses: 0 rows affected → 409 Conflict, password unchanged
 ```
 
-## Step 5 — Apply the fix
+## Step 6 — Apply the fix
 
 In `appsettings.json`:
 

