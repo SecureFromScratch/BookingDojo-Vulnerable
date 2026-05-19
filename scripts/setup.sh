@@ -15,6 +15,34 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
+echo "Waiting for LocalStack to be ready..."
+for i in $(seq 1 30); do
+  if curl -sf http://localhost:4566/_localstack/health > /dev/null 2>&1; then
+    echo "LocalStack is ready."
+    break
+  fi
+  echo "  Waiting... ($i/30)"
+  sleep 2
+done
+
+echo "Seeding SSM parameters..."
+_aws() {
+  AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=us-east-1 \
+    aws --endpoint-url=http://localhost:4566 "$@"
+}
+
+_aws ssm put-parameter \
+  --name "/bookingdojo/ConnectionStrings/BookingDojo" \
+  --value "Host=localhost;Port=5432;Database=bookingdojo;Username=bookingdojo;Password=bookingdojo" \
+  --type "SecureString" --overwrite > /dev/null
+
+_aws ssm put-parameter \
+  --name "/bookingdojo/BookingDojo/Jwt/Secret" \
+  --value "BookingDojoWorkshopSecret2024ForJwtTokenGeneration!!" \
+  --type "SecureString" --overwrite > /dev/null
+
+echo "SSM parameters seeded."
+
 echo "Running database setup via API startup..."
 cd "$ROOT_DIR/src/BookingDojo.Api"
 

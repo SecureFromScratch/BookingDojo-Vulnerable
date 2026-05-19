@@ -1,4 +1,6 @@
 using System.Text;
+using Amazon.Extensions.NETCore.Setup;
+using Amazon.Runtime;
 using BookingDojo.Api.Authorization;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Services;
@@ -11,6 +13,18 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var localStackUrl = builder.Configuration["AWS:ServiceURL"] ?? "http://localhost:4566";
+builder.Configuration.AddSystemsManager(source =>
+{
+    source.Path = "/bookingdojo";
+    source.AwsOptions = new AWSOptions
+    {
+        Credentials = new BasicAWSCredentials("test", "test"),
+        Region = Amazon.RegionEndpoint.USEast1,
+        DefaultClientConfig = { ServiceURL = localStackUrl }
+    };
+});
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
