@@ -16,7 +16,7 @@ services:
       retries: 10
 
   localstack:
-    image: localstack/localstack
+    image: localstack/localstack:3
     ports:
       - "4566:4566"
     environment:
