@@ -175,11 +175,23 @@ export const api = {
   removeFromCart: (itemId: number) =>
     request<void>(`/bff/cart/items/${itemId}`, { method: 'DELETE' }),
 
-  checkout: (couponCode?: string) =>
-    request<CheckoutResult>('/bff/cart/checkout', {
+  checkout: async (couponCode?: string) => {
+    const response = await fetch('/bff/cart/checkout', {
       method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ couponCode: couponCode || null }),
-    }),
+    })
+    if (response.status === 403) {
+      const body = await response.json().catch(() => ({}))
+      if (body.requiresMfa) throw Object.assign(new Error('MFA_REQUIRED'), { requiresMfa: true as const })
+    }
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ message: response.statusText }))
+      throw new Error(body.message || `HTTP ${response.status}`)
+    }
+    return response.json() as Promise<CheckoutResult>
+  },
 
   mfaChallenge: () =>
     request<{ expiresAt: string; ttlMinutes: number }>('/bff/auth/mfa/challenge', { method: 'POST' }),

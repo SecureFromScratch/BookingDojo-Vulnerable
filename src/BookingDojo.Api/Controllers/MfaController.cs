@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Models;
+using BookingDojo.Api.Services;
 using BookingDojo.Api.Workshop;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,14 +18,16 @@ public class MfaController : ControllerBase
 {
     private readonly BookingDojoDbContext _db;
     private readonly IOptions<WorkshopOptions> _workshop;
+    private readonly AuthService _authService;
 
     private const int MaxAttempts = 5;
     private const int OtpTtlMinutes = 10;
 
-    public MfaController(BookingDojoDbContext db, IOptions<WorkshopOptions> workshop)
+    public MfaController(BookingDojoDbContext db, IOptions<WorkshopOptions> workshop, AuthService authService)
     {
         _db = db;
         _workshop = workshop;
+        _authService = authService;
     }
 
     private Guid UserId => Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
@@ -120,12 +123,16 @@ public class MfaController : ControllerBase
         challenge.VerifiedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
+        var user = await _db.Users.FindAsync(UserId);
+        var newToken = _authService.GenerateJwtMfaStamped(user!);
+
         return Ok(new
         {
             verified = true,
             username = Username,
             userId = UserId,
             verifiedAt = challenge.VerifiedAt,
+            token = newToken,
         });
     }
 

@@ -12,6 +12,11 @@ export default function CartPage() {
   const [checkoutResult, setCheckoutResult] = useState<CheckoutResult | null>(null)
   const [checkoutError, setCheckoutError] = useState('')
   const [checkingOut, setCheckingOut] = useState(false)
+  const [mfaRequired, setMfaRequired] = useState(false)
+  const [mfaCode, setMfaCode] = useState('')
+  const [mfaError, setMfaError] = useState('')
+  const [mfaLoading, setMfaLoading] = useState(false)
+  const [pendingCoupon, setPendingCoupon] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     api.getCart()
@@ -77,10 +82,43 @@ export default function CartPage() {
       setCheckoutResult(result)
       setCart(prev => prev ? { ...prev, items: [] } : prev)
       setAppliedCoupon(null)
-    } catch (err) {
-      setCheckoutError(err instanceof Error ? err.message : 'Checkout failed')
+    } catch (err: any) {
+      if (err.requiresMfa) {
+        setPendingCoupon(appliedCoupon?.code)
+        setMfaRequired(true)
+        setMfaError('')
+        api.mfaChallenge().catch(() => {})
+      } else {
+        setCheckoutError(err instanceof Error ? err.message : 'Checkout failed')
+      }
     } finally {
       setCheckingOut(false)
+    }
+  }
+
+  const handleMfaVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setMfaLoading(true)
+    setMfaError('')
+    try {
+      await api.mfaVerify(mfaCode)
+      setMfaRequired(false)
+      setMfaCode('')
+      setCheckingOut(true)
+      try {
+        const result = await api.checkout(pendingCoupon)
+        setCheckoutResult(result)
+        setCart(prev => prev ? { ...prev, items: [] } : prev)
+        setAppliedCoupon(null)
+      } catch (err: any) {
+        setCheckoutError(err instanceof Error ? err.message : 'Checkout failed')
+      } finally {
+        setCheckingOut(false)
+      }
+    } catch (err: any) {
+      setMfaError(err.message || 'Incorrect code')
+    } finally {
+      setMfaLoading(false)
     }
   }
 
@@ -244,11 +282,41 @@ export default function CartPage() {
             {couponError && <div className="error-msg" style={{ marginBottom: '0.75rem' }}>{couponError}</div>}
 
             {checkoutError && <div className="error-msg" style={{ marginBottom: '0.75rem' }}>{checkoutError}</div>}
-            <form onSubmit={handleCheckout}>
-              <button type="submit" className="btn-primary" disabled={checkingOut}>
-                {checkingOut ? 'Processing...' : 'Checkout'}
-              </button>
-            </form>
+            {!mfaRequired && (
+              <form onSubmit={handleCheckout}>
+                <button type="submit" className="btn-primary" disabled={checkingOut}>
+                  {checkingOut ? 'Processing...' : 'Checkout'}
+                </button>
+              </form>
+            )}
+
+            {mfaRequired && (
+              <div style={{ marginTop: '1rem', background: '#0f172a', border: '1px solid #334155', borderRadius: 8, padding: '1.25rem' }}>
+                <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>Identity verification required</h3>
+                <p style={{ color: '#94a3b8', margin: '0 0 1rem', fontSize: '0.875rem' }}>
+                  A one-time code has been sent to your registered device. Enter it below to complete your purchase.
+                </p>
+                <form onSubmit={handleMfaVerify} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+                  <div className="form-group" style={{ flex: 1, margin: 0 }}>
+                    <label>One-time code</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={4}
+                      placeholder="0000"
+                      value={mfaCode}
+                      onChange={e => { setMfaCode(e.target.value.replace(/\D/g, '')); setMfaError('') }}
+                      style={{ letterSpacing: '0.4em', fontFamily: 'monospace', fontSize: '1.2rem', textAlign: 'center' }}
+                      autoFocus
+                    />
+                  </div>
+                  <button type="submit" className="btn-primary" disabled={mfaLoading || mfaCode.length !== 4}>
+                    {mfaLoading ? 'Verifying…' : 'Verify & Pay'}
+                  </button>
+                </form>
+                {mfaError && <div className="error-msg" style={{ marginTop: '0.5rem' }}>{mfaError}</div>}
+              </div>
+            )}
           </div>
         </>
       )}

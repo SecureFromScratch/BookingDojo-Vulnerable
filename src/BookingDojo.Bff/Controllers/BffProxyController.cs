@@ -60,9 +60,12 @@ public class BffProxyController : ControllerBase
 
         if (Request.Method is "POST" or "PUT" or "PATCH")
         {
-            var requestContent = new StreamContent(Request.Body);
-            requestContent.Headers.ContentType =
-                new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+            var ms = new MemoryStream();
+            await Request.Body.CopyToAsync(ms);
+            var requestContent = new ByteArrayContent(ms.ToArray());
+            if (!string.IsNullOrEmpty(Request.ContentType))
+                requestContent.Headers.ContentType =
+                    System.Net.Http.Headers.MediaTypeHeaderValue.Parse(Request.ContentType);
             apiRequest.Content = requestContent;
         }
 

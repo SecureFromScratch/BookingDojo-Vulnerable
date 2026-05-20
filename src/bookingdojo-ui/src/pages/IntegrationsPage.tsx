@@ -78,7 +78,7 @@ export default function IntegrationsPage() {
         <div className="xss-hint">
           <strong>Workshop tip:</strong> In Vulnerable mode the server pings any URL you register —
           including internal services. Try{' '}
-          <code>http://localhost:5000/api/internal/secret</code> to retrieve credentials the server
+          <code>http://localhost:8888/api/internal/secret</code> to retrieve credentials the server
           can reach but the browser cannot.
         </div>
 

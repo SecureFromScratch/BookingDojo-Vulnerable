@@ -145,7 +145,10 @@ public class AuthService
         return token;
     }
 
-    private string GenerateJwt(User user)
+    public string GenerateJwtMfaStamped(User user) =>
+        GenerateJwt(user, DateTime.UtcNow);
+
+    private string GenerateJwt(User user, DateTime? mfaVerifiedAt = null)
     {
         var secret = _config["BookingDojo:Jwt:Secret"]!;
         var issuer = _config["BookingDojo:Jwt:Issuer"]!;
@@ -163,6 +166,10 @@ public class AuthService
 
         if (user.PartnerId.HasValue)
             claims.Add(new("partner_id", user.PartnerId.Value.ToString()));
+
+        if (mfaVerifiedAt.HasValue)
+            claims.Add(new("mfa_verified_at",
+                new DateTimeOffset(mfaVerifiedAt.Value, TimeSpan.Zero).ToUnixTimeSeconds().ToString()));
 
         var expirationMinutes = _config.GetValue<int>("BookingDojo:Jwt:ExpirationMinutes", 15);
         var token = new JwtSecurityToken(

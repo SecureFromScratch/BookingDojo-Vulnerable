@@ -17,8 +17,7 @@ export default function Navbar() {
         <Link to="/bookings" className="navbar-brand" aria-label="BookingDojo home">
           <span className="navbar-logo-mark" aria-hidden="true">✦</span>
           <span className="navbar-brand-copy">
-            <span>BookingDojo</span>
-            <small>Go Global</small>
+            <span>BookingDojo</span>            
           </span>
         </Link>
 

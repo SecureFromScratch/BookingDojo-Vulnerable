@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
@@ -79,5 +80,69 @@ public class BffAuthController : ControllerBase
     {
         await HttpContext.SignOutAsync("bff");
         return NoContent();
+    }
+
+    // Intercepts MFA verify so the BFF can stamp mfa_verified_at into the session cookie.
+    // The token field is stripped before forwarding the response to the browser.
+    [HttpPost("mfa/verify")]
+    public async Task<IActionResult> MfaVerify([FromBody] JsonElement body)
+    {
+        if (User.Identity?.IsAuthenticated != true) return Unauthorized();
+
+        var accessToken = User.FindFirstValue("access_token");
+        if (string.IsNullOrEmpty(accessToken)) return Unauthorized();
+
+        var client = _httpClientFactory.CreateClient("api");
+        var apiRequest = new HttpRequestMessage(HttpMethod.Post, "/api/auth/mfa/verify")
+        {
+            Content = new StringContent(body.GetRawText(), Encoding.UTF8, "application/json")
+        };
+        apiRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await client.SendAsync(apiRequest);
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        if (response.IsSuccessStatusCode && !string.IsNullOrEmpty(responseBody))
+        {
+            var data = JsonSerializer.Deserialize<JsonElement>(responseBody);
+            if (data.TryGetProperty("token", out var tokenProp))
+            {
+                var newToken = tokenProp.GetString()!;
+                var claims = new List<Claim>
+                {
+                    new(ClaimTypes.Name,  User.Identity!.Name!),
+                    new("access_token",   newToken),
+                    new("refresh_token",  User.FindFirstValue("refresh_token") ?? ""),
+                    new("role",           User.FindFirstValue("role") ?? ""),
+                };
+                var partnerId = User.FindFirstValue("partner_id");
+                if (!string.IsNullOrEmpty(partnerId))
+                    claims.Add(new("partner_id", partnerId));
+
+                await HttpContext.SignInAsync("bff",
+                    new ClaimsPrincipal(new ClaimsIdentity(claims, "bff")),
+                    new AuthenticationProperties
+                    {
+                        IsPersistent = true,
+                        ExpiresUtc   = DateTimeOffset.UtcNow.AddDays(7),
+                        AllowRefresh = true
+                    });
+
+                // Strip the internal token before forwarding to the browser
+                return StatusCode((int)response.StatusCode, new
+                {
+                    verified    = data.GetProperty("verified").GetBoolean(),
+                    username    = data.GetProperty("username").GetString(),
+                    userId      = data.GetProperty("userId").GetString(),
+                    verifiedAt  = data.GetProperty("verifiedAt").GetString(),
+                });
+            }
+        }
+
+        Response.StatusCode  = (int)response.StatusCode;
+        Response.ContentType = "application/json";
+        if (!string.IsNullOrEmpty(responseBody))
+            await Response.WriteAsync(responseBody);
+        return new EmptyResult();
     }
 }
