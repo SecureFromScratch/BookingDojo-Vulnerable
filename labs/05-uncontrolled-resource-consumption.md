@@ -26,38 +26,21 @@ This vulnerability is distinct from SQL injection. Even with a perfectly paramet
 
 ---
 
-## Setup
-
-```bash
-docker compose up -d
-dotnet run --project src/BookingDojo.Api &
-dotnet run --project src/BookingDojo.Bff &
-cd src/bookingdojo-ui && npm run dev &
-```
-
-In `src/BookingDojo.Api/appsettings.json`, confirm both flags are Vulnerable:
-
-```json
-"Workshop": {
-  "BookingSearchSqlInjection": "Vulnerable",
-  "BookingSearchResourceConsumption": "Vulnerable"
-}
-```
-
----
-
 ## Step 1 — Observe normal UI behaviour
 
 The database is pre-seeded with 211 bookings for `partner` (212 total across all users).
 
-```bash
-# Log in as partner
-curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"partner","password":"Partner1234!"}' | jq .
+Log in as `partner / Partner1234!` at `http://localhost:5173` and go to **Bookings**. Click **Search** with the hotel field empty. The results show 10 rows with a **"— showing first 10 results"** badge. This looks like a safe server-side limit.
+
+It isn't. Open **DevTools → Network**, click the search request, and look at the URL:
+
+```
+/bff/bookings/search?q=&pageSize=10
 ```
 
-Open the Bookings page and click **Search** (leave the hotel field blank). You see 10 results with a "showing first 10 results" badge. That looks safe — but inspect the outgoing request:
+The `pageSize=10` comes from the JavaScript — not from any server enforcement. Copy that URL, change `pageSize=10` to `pageSize=999999`, and paste it into the address bar. You'll bypass the UI and see all 211 rows returned.
+
+Alternatively, inspect the outgoing request via curl:
 
 ```bash
 # This is exactly what the UI sends

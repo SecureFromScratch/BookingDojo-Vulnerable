@@ -31,6 +31,9 @@ cd src/bookingdojo-ui && npm run dev
 # Start PostgreSQL and LocalStack
 docker compose up -d
 
+# Seed SSM parameters and database (first time only)
+bash scripts/setup.sh
+
 # Terminal 1 — API (port 5000)
 dotnet run --project src/BookingDojo.Api
 
@@ -41,7 +44,7 @@ dotnet run --project src/BookingDojo.Bff
 cd src/bookingdojo-ui && npm run dev
 ```
 
-Open http://localhost:5173 in your browser. The database is seeded automatically on first start.
+Open http://localhost:5173 in your browser.
 
 ## Workshop Accounts
 
@@ -57,6 +60,25 @@ Open http://localhost:5173 in your browser. The database is seeded automatically
 |----------|-------------|
 | [Architecture](docs/architecture.md) | Stack overview, BFF pattern, workshop flags reference |
 | [JWT & Session Security](docs/jwt.md) | How tokens are issued, encrypted, rotated, and persisted |
+
+## Running the Labs
+
+Each lab assumes the full stack is already running. Start it with the Quick Start instructions above (local or Codespaces), then set the relevant flag to `"Vulnerable"` in `src/BookingDojo.Api/appsettings.json` and restart the API.
+
+| Lab | Flag |
+|-----|------|
+| 01 Stored XSS | `StoredXssAuditLogs` |
+| 02 IDOR | `BookingIdorAccess` |
+| 03 SQL Injection — Search | `BookingSearchSqlInjection` |
+| 04 Blind SQL Injection — Login | `LoginSqlInjection` |
+| 05 Resource Consumption | `BookingSearchSqlInjection` + `BookingSearchResourceConsumption` |
+| 06 Race Condition — Coupon | `CouponRedemptionRaceCondition` |
+| 07 Race Condition — Password Reset | `PasswordResetRaceCondition` |
+| 08 SSRF — Webhook | `WebhookSsrf` |
+| 09 Exception Disclosure | `ExceptionDetailDisclosure` |
+| 10 PII Storage | `CardPiiStorage` |
+| 11 MFA Brute Force | `MfaBruteForceProtection` |
+| 12 Audit Log Manipulation | `LogInjection` / `AuditLogDeletion` |
 
 ## Exercises
 

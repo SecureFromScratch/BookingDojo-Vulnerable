@@ -132,7 +132,17 @@ A `SupportUser` who took a suspicious action can:
 2. Call `DELETE /api/audit-logs/{id}` with their own Bearer token.
 3. The entry disappears — no secondary record is created. The deletion leaves **no trace**.
 
-### Attack
+### Attack via the UI
+
+Log in as `support / Support1234!` at `http://localhost:5173` and navigate to **Audit Logs**.
+
+The table shows all log entries. Find your own `LOGIN_SUCCESS` row (it will be at the top). Each row has a **Delete** button — click it. The row disappears immediately with no confirmation dialog and no trace left in the table.
+
+Log in as `admin / Admin1234!` and check the Audit Logs — the SupportUser's login entry is simply gone. There is no `LOG_ENTRY_DELETED` record because the vulnerable path writes nothing.
+
+Switch `AuditLogDeletion` to `"Fixed"` and repeat: the Delete button returns an error for SupportUser (`403 Forbidden`), and when AdminUser deletes, a `LOG_ENTRY_DELETED` entry appears at the top of the log.
+
+### Attack via curl
 
 ```bash
 # 1. Log in as SupportUser and capture the token

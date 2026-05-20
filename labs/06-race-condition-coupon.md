@@ -32,38 +32,42 @@ Common real-world examples:
 
 ---
 
-## Setup
-
-```bash
-docker compose up -d
-dotnet run --project src/BookingDojo.Api &
-dotnet run --project src/BookingDojo.Bff &
-cd src/bookingdojo-ui && npm run dev &
-```
-
-In `src/BookingDojo.Api/appsettings.json`, confirm the flag is Vulnerable:
-
-```json
-"Workshop": {
-  "CouponRedemptionRaceCondition": "Vulnerable"
-}
-```
+## Step 1 — Observe normal behaviour via the UI
 
 The database is seeded with:
-| Code      | Discount | Max Uses |
-|-----------|----------|----------|
-| SAVE10    | 10%      | 1        |
-| SUMMER20  | 20%      | 3        |
 
----
+| Code     | Discount | Max Uses |
+|----------|----------|----------|
+| SAVE10   | 10%      | 1        |
+| SUMMER20 | 20%      | 3        |
 
-## Step 1 — Observe normal behaviour
+Log in as `partner / Partner1234!` at `http://localhost:5173`. Add any hotel to your cart from the **Hotels** page, then go to **Cart**.
 
-Log in and try the coupon legitimately:
+In the **Checkout** section you'll see a coupon input. Enter `SUMMER20` and click **Apply**. The discount appears:
+
+```
+SUMMER20 — 20% off
+```
+
+Apply it two more times (you need to remove and re-enter the code each time). On the fourth attempt the server returns an error — `"Coupon has already been fully redeemed"` (`409 Conflict`). Three uses are exactly the limit.
+
+Now try the race condition: open a **second browser tab** to `http://localhost:5173/cart`. In both tabs, type `SAVE10` into the coupon box. Click **Apply** in both tabs as simultaneously as possible.
+
+If your timing is close enough, both return success and the cart shows:
+
+```
+SAVE10 — 10% off × 2 (race condition!)
+```
+
+The compounded discount in the total confirms two redemptions slipped through. The timing window is 500 ms (artificially widened for the workshop), so two-tab clicking works reliably. In production the window is typically 5–15 ms — too small for manual clicks, requiring scripted concurrent requests.
+
+To reset the coupon state before continuing:
 
 ```bash
-# Log in
-curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
+bash scripts/reset-db.sh
+```
+
+Log in and try the coupon legitimately via curl:
   -H "Content-Type: application/json" \
   -d '{"username":"partner","password":"Partner1234!"}' | jq .
 

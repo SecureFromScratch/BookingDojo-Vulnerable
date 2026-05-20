@@ -23,26 +23,25 @@ Password reset tokens are a high-value target: a single stolen token can grant a
 
 ---
 
-## Setup
-
-```bash
-docker compose up -d
-dotnet run --project src/BookingDojo.Api &
-dotnet run --project src/BookingDojo.Bff &
-cd src/bookingdojo-ui && npm run dev &
-```
-
-In `src/BookingDojo.Api/appsettings.json`:
-
-```json
-"PasswordResetRaceCondition": "Vulnerable"
-```
+## Step 1 — Request a reset token via the UI
 
 > **Note:** The forgot-password and reset-password endpoints are public — no login cookie is needed to call them.
 
----
+On the login page at `http://localhost:5173`, click **Forgot password?**. Enter `partner` and submit. The page displays the reset token directly (workshop mode — production would send it by email):
 
-## Step 1 — Request a reset token
+```
+Reset token: a3f8c1d2e9b04f67...
+```
+
+Copy the token. Now open the reset link that would normally be in the email — navigate to:
+
+```
+http://localhost:5173/reset-password
+```
+
+Enter the token and a new password, then submit. This is the normal single-use flow. The vulnerability becomes apparent when two requests use the same token concurrently — which requires the curl steps below.
+
+To request a token via curl:
 
 ```bash
 curl -s -X POST http://localhost:5001/bff/auth/forgot-password \

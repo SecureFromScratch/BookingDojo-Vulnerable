@@ -27,25 +27,6 @@ Stored XSS is considered more dangerous than Reflected XSS because the payload e
 
 ---
 
-## Setup
-
-Ensure the exercise is in the vulnerable state:
-
-```json
-// src/BookingDojo.Api/appsettings.json
-{
-  "BookingDojo": {
-    "Workshop": {
-      "StoredXssAuditLogs": "Vulnerable"
-    }
-  }
-}
-```
-
-Restart the API if you changed the config.
-
----
-
 ## Step 1 — Understand the Attack Surface
 
 Log in as `partner / Partner1234!` and navigate to **Hotels**.

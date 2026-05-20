@@ -26,27 +26,7 @@ Sequential integer IDs make IDOR trivially exploitable: an attacker who sees the
 
 ---
 
-## Setup
-
-Start the stack:
-
-```bash
-docker compose up -d
-dotnet run --project src/BookingDojo.Api -- --seed-and-exit
-dotnet run --project src/BookingDojo.Api &
-dotnet run --project src/BookingDojo.Bff &
-cd src/bookingdojo-ui && npm run dev &
-```
-
-In `src/BookingDojo.Api/appsettings.json`, confirm:
-
-```json
-"Workshop": {
-  "BookingIdorAccess": "Vulnerable"
-}
-```
-
-Restart the API if you change the flag.
+## Step 1 — Observe the attack surface
 
 The database is pre-seeded with two bookings owned by different users:
 
@@ -54,10 +34,6 @@ The database is pre-seeded with two bookings owned by different users:
 |-----------|---------|-------------|
 | 1         | admin   | 1234        |
 | 2         | partner | 4242        |
-
----
-
-## Step 1 — Observe the attack surface
 
 Open **two browser windows** (use a private/incognito window for the second).
 
@@ -74,7 +50,21 @@ The IDs are consecutive integers. Knowing your own ID immediately reveals what I
 
 ---
 
-## Step 2 — Exploit the IDOR
+## Step 2 — Exploit the IDOR via the UI
+
+While logged in as `partner`, type this directly into the browser address bar:
+
+```
+http://localhost:5173/bookings/1
+```
+
+The booking detail page loads — showing `admin`'s booking, including the card ending in `1234`. You are authenticated as `partner` but the server returned a resource that belongs to `admin`. No tools required.
+
+Try other IDs: `/bookings/3`, `/bookings/4`, etc. Each sequential integer is another user's data.
+
+---
+
+## Step 3 — Exploit the IDOR via curl
 
 As `admin`, use curl to fetch another user's booking by ID:
 

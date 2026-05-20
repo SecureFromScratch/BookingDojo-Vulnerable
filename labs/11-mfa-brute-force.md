@@ -25,18 +25,6 @@ and (in a real system) triggering a new out-of-band delivery.
 
 ---
 
-## Workshop settings
-
-In `appsettings.json`:
-
-```json
-"MfaBruteForceProtection": "Vulnerable"
-```
-
-Change to `"Fixed"` to demonstrate the protection.
-
----
-
 ## Endpoints
 
 | Method | Path | Purpose |

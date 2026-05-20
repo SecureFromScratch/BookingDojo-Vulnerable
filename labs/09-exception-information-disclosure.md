@@ -30,31 +30,6 @@ What leaks:
 
 ---
 
-## Setup
-
-```bash
-docker compose up -d
-dotnet run --project src/BookingDojo.Api &
-dotnet run --project src/BookingDojo.Bff &
-cd src/bookingdojo-ui && npm run dev &
-```
-
-In `appsettings.json`:
-
-```json
-"ExceptionDetailDisclosure": "Vulnerable"
-```
-
-Log in as any user:
-
-```bash
-curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"Admin1234!"}' | jq .
-```
-
----
-
 ## Step 1 — Trigger a server error
 
 The debug endpoint throws an exception with sensitive information in its message:
@@ -83,9 +58,13 @@ The response reveals:
 
 ---
 
-## Step 2 — Also visible in the UI
+## Step 2 — Trigger via the UI
 
-In the Audit Logs page (accessible to AdminUser and SupportUser), there is an "Exception Disclosure Test" panel. Click **Trigger Server Error** to see the raw JSON response rendered directly in the browser. Switch the flag and observe how the response changes.
+Log in as `admin / Admin1234!` (or `support / Support1234!`) and navigate to **Audit Logs**.
+
+At the top of the page there is an **Exception Disclosure Test** panel with a **Trigger Server Error** button. Click it. The raw JSON response is rendered directly in the browser — you can read the database password, internal hostname, file path, and stack trace without any tools.
+
+Switch `ExceptionDetailDisclosure` to `"Fixed"`, restart the API, and click the button again. The panel now shows only `{ "message": "An internal error occurred." }` — nothing exploitable.
 
 ---
 

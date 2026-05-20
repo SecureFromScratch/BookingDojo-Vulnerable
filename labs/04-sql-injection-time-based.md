@@ -34,30 +34,23 @@ By testing conditions character by character, an attacker can reconstruct any st
 
 ---
 
-## Setup
+## Step 1 — Observe the attack surface via the UI
 
-```bash
-docker compose up -d
-dotnet run --project src/BookingDojo.Api &
-dotnet run --project src/BookingDojo.Bff &
-cd src/bookingdojo-ui && npm run dev &
+Open `http://localhost:5173` and go to the login page. The form has two fields: **Username** and **Password**.
+
+Type the following timing probe directly into the **Username** field and submit with any password:
+
+```
+x' OR 1=(SELECT 1 FROM pg_sleep(CASE WHEN (SELECT COUNT(*) FROM bookingdojo."Users" WHERE "Username"='admin')>0 THEN 3 ELSE 0 END))--
 ```
 
-In `src/BookingDojo.Api/appsettings.json`, confirm:
+The page will appear to hang for ~3 seconds before returning "Invalid username or password". That pause confirms injection — the database executed the sleep because `admin` exists.
 
-```json
-"Workshop": {
-  "LoginSqlInjection": "Vulnerable"
-}
-```
+To measure this precisely, open **DevTools → Network** before submitting. Select the login request after it completes and read the **Time** column — it will show ~3000 ms for the `admin` probe vs ~100 ms for a non-existent username like `doesnotexist`. The response body is identical either way; only the timing differs.
 
-Restart the API if you change the flag.
+> **Limitation:** The UI's login form doesn't let you script the character-by-character extraction in Step 4 — that requires curl or sqlmap. The form is the attack surface; the extraction itself is a scripted attack.
 
----
-
-## Step 1 — Observe the attack surface
-
-The login endpoint accepts `username` and `password` and returns `200` or `401`. Try a normal login:
+The login endpoint accepts `username` and `password` and returns `200` or `401`. Try a normal login via curl:
 
 ```bash
 curl -s -X POST http://localhost:5001/bff/auth/login \

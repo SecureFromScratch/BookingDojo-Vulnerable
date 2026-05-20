@@ -19,21 +19,26 @@ In **Fixed** mode the server tokenizes on arrival:
 
 ---
 
-## Workshop settings
+## Step 1 – Create a booking and observe the response via the UI
 
-In `appsettings.json` set:
+Log in as `partner / Partner1234!` at `http://localhost:5173` and go to **Bookings**.
 
-```json
-"CardPiiStorage": "Vulnerable"
+Fill in the **New Booking** form with any hotel, dates, and this card number:
+
+```
+5500005555554242
 ```
 
-To demonstrate the fix, change it to `"Fixed"`.
+Click **Book Now** — you're redirected to the Cart. In the cart table, look at the **Card** column:
 
----
+- **Vulnerable mode:** the full 16-digit number `5500005555554242` is shown in **red**
+- **Fixed mode:** `**** **** **** 4242` and a token like `tok_a3f9c2d1e8b6` in green
 
-## Step 1 – Create a booking and observe the response
+After checkout, go to **Bookings → My Bookings** and click the booking row to open the detail page. In Vulnerable mode the full card number is returned in the API response and rendered in red in the UI.
 
-Log in as **partner** and create a booking via the Bookings page (or with curl):
+To observe the raw API response, open **DevTools → Network**, click the booking detail request (`/bff/bookings/{id}`), and inspect the response JSON — in Vulnerable mode you'll see `"cardNumber": "5500005555554242"`.
+
+Or with curl:
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/login \
