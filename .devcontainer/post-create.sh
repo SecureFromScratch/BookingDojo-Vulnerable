@@ -9,7 +9,8 @@ echo ""
 echo "[0/5] Installing AWS CLI..."
 APT_CMD="apt-get"
 command -v sudo &>/dev/null && APT_CMD="sudo apt-get"
-$APT_CMD update -qq && $APT_CMD install -y -qq awscli
+DEBIAN_FRONTEND=noninteractive $APT_CMD update -qq && \
+  DEBIAN_FRONTEND=noninteractive $APT_CMD install -y -qq awscli
 
 # Wait for Docker daemon to be ready and able to pull images
 echo "[1/5] Waiting for Docker daemon..."
