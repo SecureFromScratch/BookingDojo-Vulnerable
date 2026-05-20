@@ -33,7 +33,7 @@ A `\n` (newline) inside `username` terminates the current log line and starts a 
 Run while the server is up and watch its console:
 
 ```bash
-curl -s -X POST http://localhost:5000/api/auth/login \
+curl -s -X POST http://localhost:5001/bff/auth/login \
   -H "Content-Type: application/json" \
   -d $'{"username":"alice\\n[CRITICAL] 2026-05-05 11:00:00 admin ROLE_CHANGED to SuperAdmin","password":"x"}'
 ```
@@ -51,7 +51,7 @@ The injected `[CRITICAL]` line looks indistinguishable from a real log entry to 
 ### How it works at runtime
 
 ```
-POST /api/auth/login {"username": "alice\n[CRITICAL] admin ROLE_CHANGED..."}
+POST /bff/auth/login {"username": "alice\n[CRITICAL] admin ROLE_CHANGED..."}
         │
         ▼
 AuditLogService.LogAsync(username = "alice\n[CRITICAL]...")
@@ -145,30 +145,29 @@ Switch `AuditLogDeletion` to `"Fixed"` and repeat: the Delete button returns an 
 ### Attack via curl
 
 ```bash
-# 1. Log in as SupportUser and capture the token
-TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/login \
+# 1. Log in as SupportUser
+curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"support","password":"Support1234!"}' | jq -r '.token')
+  -d '{"username":"support","password":"Support1234!"}' | jq .
 
 # 2. Find your own audit log entry (LOGIN_SUCCESS)
-ENTRY_ID=$(curl -s http://localhost:5000/api/audit-logs \
-  -H "Authorization: Bearer $TOKEN" | \
+ENTRY_ID=$(curl -s -b cookies.txt http://localhost:5001/bff/audit-logs | \
   jq -r '[.[] | select(.action=="LOGIN_SUCCESS")] | last | .id')
 
 # 3. Delete it — no error, no trace
-curl -s -X DELETE http://localhost:5000/api/audit-logs/$ENTRY_ID \
-  -H "Authorization: Bearer $TOKEN"
-# → 204 No Content
+curl -s -o /dev/null -w "%{http_code}" \
+  -X DELETE http://localhost:5001/bff/audit-logs/$ENTRY_ID \
+  -b cookies.txt
+# → 204
 
 # 4. Confirm it is gone
-curl -s http://localhost:5000/api/audit-logs \
-  -H "Authorization: Bearer $TOKEN" | jq '[.[] | .action]'
+curl -s -b cookies.txt http://localhost:5001/bff/audit-logs | jq '[.[] | .action]'
 ```
 
 ### How it works at runtime
 
 ```
-DELETE /api/audit-logs/{id}  (called by SupportUser)
+DELETE /bff/audit-logs/{id}  (called by SupportUser)
         │
         ▼
 AuditLogsController.DeleteLog(id)
@@ -218,19 +217,30 @@ The `LOG_ENTRY_DELETED` entry cannot be deleted by the same `AdminUser` because 
 ### Verifying the fix
 
 ```bash
+# Log in as SupportUser
+curl -s -c cookies_support.txt -X POST http://localhost:5001/bff/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"support","password":"Support1234!"}' | jq .
+
 # SupportUser is now rejected
 curl -s -o /dev/null -w "%{http_code}" \
-  -X DELETE http://localhost:5000/api/audit-logs/$ENTRY_ID \
-  -H "Authorization: Bearer $SUPPORT_TOKEN"
+  -X DELETE http://localhost:5001/bff/audit-logs/$ENTRY_ID \
+  -b cookies_support.txt
 # → 403
 
+# Log in as AdminUser
+curl -s -c cookies_admin.txt -X POST http://localhost:5001/bff/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"Admin1234!"}' | jq .
+
 # AdminUser can delete, but the deletion is logged
-curl -s -X DELETE http://localhost:5000/api/audit-logs/$ENTRY_ID \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
+curl -s -o /dev/null -w "%{http_code}" \
+  -X DELETE http://localhost:5001/bff/audit-logs/$ENTRY_ID \
+  -b cookies_admin.txt
 # → 204
 
-curl -s http://localhost:5000/api/audit-logs \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | jq '[.[] | select(.action=="LOG_ENTRY_DELETED")]'
+curl -s -b cookies_admin.txt http://localhost:5001/bff/audit-logs | \
+  jq '[.[] | select(.action=="LOG_ENTRY_DELETED")]'
 # → the LOG_ENTRY_DELETED record is there
 ```
 
