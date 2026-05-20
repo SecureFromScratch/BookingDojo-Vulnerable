@@ -67,35 +67,6 @@ To reset the coupon state before continuing:
 bash scripts/reset-db.sh
 ```
 
-Log in and try the coupon legitimately via curl:
-  -H "Content-Type: application/json" \
-  -d '{"username":"partner","password":"Partner1234!"}' | jq .
-
-# Redeem once — succeeds
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
-  -H "Content-Type: application/json" \
-  -d '{"code":"SUMMER20"}' | jq .
-```
-
-Expected: `{ "discountPercent": 20, "message": "Coupon applied" }`
-
-```bash
-# Redeem until exhausted (MaxUses=3)
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
-  -H "Content-Type: application/json" \
-  -d '{"code":"SUMMER20"}' | jq .
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
-  -H "Content-Type: application/json" \
-  -d '{"code":"SUMMER20"}' | jq .
-
-# Fourth attempt — fails as expected
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
-  -H "Content-Type: application/json" \
-  -d '{"code":"SUMMER20"}' | jq .
-```
-
-Expected on the fourth call: `409 Conflict` — `"Coupon has already been fully redeemed"`.
-
 ---
 
 ## Step 2 — Understand the vulnerable code
