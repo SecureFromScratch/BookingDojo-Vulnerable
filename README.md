@@ -4,6 +4,27 @@ A deliberately vulnerable travel booking platform for secure coding workshops.
 
 Each exercise is toggled by a configuration flag — both the vulnerable and fixed implementations live in the same codebase.
 
+## Quick Start (GitHub Codespaces)
+
+1. Click **Code → Codespaces → Create codespace on main**
+2. Wait for setup to complete — the first build takes ~5 minutes (pulls images, restores packages, seeds the database)
+3. Once setup finishes, open three terminals and run:
+
+```bash
+# Terminal 1 — API (port 5000)
+cd src/BookingDojo.Api && dotnet run
+
+# Terminal 2 — BFF (port 5001)
+cd src/BookingDojo.Bff && dotnet run
+
+# Terminal 3 — UI (port 5173)
+cd src/bookingdojo-ui && npm run dev
+```
+
+4. Go to the **Ports** tab and click the globe icon next to port **5173** to open the UI in your browser.
+
+> Subsequent opens of the same Codespace resume in seconds. Only the first build is slow.
+
 ## Quick Start (Local)
 
 ```bash
