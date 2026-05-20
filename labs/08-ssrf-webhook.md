@@ -32,18 +32,26 @@ Common SSRF entry points: webhook URL fields, image/avatar fetch-by-URL, PDF gen
 
 ## Step 1 — Understand the internal target
 
-The API exposes an endpoint that is intentionally **not** accessible through the BFF:
+The API exposes an internal configuration endpoint on a **separate port (8888)** that simulates a service on an isolated internal network:
 
 ```
-GET /api/internal/secret   (no authentication required)
-POST /api/internal/secret
+GET  http://localhost:8888/api/internal/secret   (no authentication required)
+POST http://localhost:8888/api/internal/secret
 ```
 
-Its response contains sensitive internal configuration — DB credentials, Stripe keys, JWT signing secret. In production this kind of endpoint would be on an internal subnet, separated from public traffic by a firewall or VPC boundary. Here, it's on `localhost:5000` alongside the public API.
+Its response contains sensitive internal configuration — DB credentials, Stripe keys, JWT signing secret.
 
-Try it from your browser: open `http://localhost:5000/api/internal/secret`. In Codespaces the port may not be forwarded, so the browser request fails or prompts for auth — you cannot reach it directly.
+Port 8888 is intentionally **not forwarded** in the Codespace. VS Code is configured to ignore it (`"onAutoForward": "ignore"`). Try opening it in your browser:
 
-But the server can.
+```
+http://localhost:8888/api/internal/secret
+```
+
+In Codespaces, the browser cannot reach port 8888 — there is no port forwarding tunnel for it, so the connection is refused. The endpoint is effectively invisible to anyone outside the server's own process.
+
+But when the server makes an outbound HTTP request (via SSRF), it originates from *inside* the same machine. `localhost:8888` is reachable from the server's loopback. The firewall sees: server → server — always allowed.
+
+> **Local dev note:** Running locally, port 8888 *is* reachable from your browser since there's no Codespaces proxy to block it. In a real deployment the internal service would be on an isolated subnet or container network. Codespaces is the canonical environment for this lab.
 
 ---
 
@@ -56,7 +64,7 @@ The page has two sections: **Webhooks** (save a URL permanently) and **Test a UR
 In the **URL** field, enter:
 
 ```
-http://localhost:5000/api/internal/secret
+http://localhost:8888/api/internal/secret
 ```
 
 Click **Send Test**. The response panel shows:
@@ -98,14 +106,14 @@ curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
 
 curl -s -b cookies.txt -X POST http://localhost:5001/bff/webhooks/test \
   -H "Content-Type: application/json" \
-  -d '{"url":"http://localhost:5000/api/internal/secret"}' | jq .
+  -d '{"url":"http://localhost:8888/api/internal/secret"}' | jq .
 ```
 
 Expected response:
 
 ```json
 {
-  "url": "http://localhost:5000/api/internal/secret",
+  "url": "http://localhost:8888/api/internal/secret",
   "statusCode": "200",
   "body": "{\"service\":\"internal-config-v1\",\"database\":{\"primary\":{\"password\":\"Pr0dD4t4b4s3S3cr3t-2024!\"...}}",
   "error": null
@@ -149,7 +157,7 @@ Restart the API and repeat the attack:
 ```bash
 curl -s -b cookies.txt -X POST http://localhost:5001/bff/webhooks/test \
   -H "Content-Type: application/json" \
-  -d '{"url":"http://localhost:5000/api/internal/secret"}' | jq .
+  -d '{"url":"http://localhost:8888/api/internal/secret"}' | jq .
 ```
 
 Expected: `400 Bad Request`
@@ -191,7 +199,7 @@ A valid HTTPS public URL still works.
 ## Step 6 — How it works at runtime
 
 ```
-POST /bff/webhooks/test {"url": "http://localhost:5000/api/internal/secret"}
+POST /bff/webhooks/test {"url": "http://localhost:8888/api/internal/secret"}
         │
         ▼
 WebhooksController.TestWebhook(url)
@@ -199,10 +207,10 @@ WebhooksController.TestWebhook(url)
         ├─ Vulnerable: no URL validation
         │       │
         │       ▼
-        │  HttpClient.PostAsync("http://localhost:5000/api/internal/secret")
+        │  HttpClient.PostAsync("http://localhost:8888/api/internal/secret")
         │       │
-        │       └─► request originates from the SERVER'S loopback
-        │           InternalSecretController has no [Authorize] — responds 200
+        │       └─► request originates from the SERVER'S loopback (LocalPort=8888)
+        │           InternalSecretController: LocalPort==8888 → no auth required → 200
         │           DB password, Stripe key, JWT secret returned to attacker
         │
         └─ Fixed: URL validated before fetch
