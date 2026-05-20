@@ -11,10 +11,15 @@ namespace BookingDojo.Api.Controllers;
 [Route("api/internal")]
 public class InternalSecretController : ControllerBase
 {
+    private const int InternalPort = 8888;
+
     [HttpGet("secret")]
     [HttpPost("secret")]
     public IActionResult GetSecret()
     {
+        if (HttpContext.Connection.LocalPort != InternalPort)
+            return NotFound();
+
         return Ok(new
         {
             service = "internal-config-v1",

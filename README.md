@@ -21,7 +21,32 @@ cd src/BookingDojo.Bff && dotnet run
 cd src/bookingdojo-ui && npm run dev
 ```
 
-4. Go to the **Ports** tab and click the globe icon next to port **5173** to open the UI in your browser.
+4. Once the terminal goes quiet, verify the setup completed successfully:
+
+```bash
+bash scripts/verify.sh
+```
+
+A passing run looks like this:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  BookingDojo — Setup Verification
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ✅  PostgreSQL    reachable on :5432
+  ✅  LocalStack    reachable on :4566
+  ✅  SSM param     ConnectionStrings/BookingDojo present
+  ✅  SSM param     BookingDojo/Jwt/Secret present
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ✅  All checks passed — ready to use!
+```
+
+If any check fails the script prints the exact command to fix it.
+
+5. Go to the **Ports** tab and click the globe icon next to port **5173** to open the UI in your browser.
 
 > Subsequent opens of the same Codespace resume in seconds. Only the first build is slow.
 

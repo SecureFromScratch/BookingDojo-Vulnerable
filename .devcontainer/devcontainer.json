@@ -13,10 +13,11 @@
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "forwardPorts": [5000, 5001, 5173, 5432],
   "portsAttributes": {
-    "5000": { "label": "BookingDojo API", "onAutoForward": "silent" },
-    "5001": { "label": "BookingDojo BFF", "onAutoForward": "silent" },
-    "5173": { "label": "BookingDojo UI",  "onAutoForward": "openBrowser" },
-    "5432": { "label": "PostgreSQL",      "onAutoForward": "silent" }
+    "5000": { "label": "BookingDojo API",      "onAutoForward": "silent" },
+    "5001": { "label": "BookingDojo BFF",      "onAutoForward": "silent" },
+    "5173": { "label": "BookingDojo UI",       "onAutoForward": "openBrowser" },
+    "5432": { "label": "PostgreSQL",           "onAutoForward": "silent" },
+    "8888": { "label": "Internal Config (Lab 08 SSRF target — do not expose)", "onAutoForward": "ignore" }
   },
   "customizations": {
     "vscode": {

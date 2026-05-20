@@ -6,12 +6,11 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 echo "Waiting for PostgreSQL to be ready..."
 for i in $(seq 1 60); do
-  if docker-compose -f "$ROOT_DIR/docker-compose.yml" exec -T postgres \
-      pg_isready -U bookingdojo -d bookingdojo > /dev/null 2>&1; then
+  if (echo > /dev/tcp/localhost/5432) 2>/dev/null; then
     echo "PostgreSQL is ready."
     break
   fi
-  [ "$i" -eq 60 ] && { echo "PostgreSQL did not start in time."; docker logs "$(docker-compose -f "$ROOT_DIR/docker-compose.yml" ps -q postgres)" 2>&1 | tail -20; exit 1; }
+  [ "$i" -eq 60 ] && { echo "PostgreSQL did not start in time."; docker compose -f "$ROOT_DIR/docker-compose.yml" logs postgres | tail -20; exit 1; }
   echo "  Waiting... ($i/60)"
   sleep 3
 done
@@ -22,7 +21,7 @@ for i in $(seq 1 60); do
     echo "LocalStack is ready."
     break
   fi
-  [ "$i" -eq 60 ] && { echo "LocalStack did not start in time."; docker logs "$(docker-compose -f "$ROOT_DIR/docker-compose.yml" ps -q localstack)" 2>&1 | tail -30; exit 1; }
+  [ "$i" -eq 60 ] && { echo "LocalStack did not start in time."; docker compose -f "$ROOT_DIR/docker-compose.yml" logs localstack | tail -30; exit 1; }
   echo "  Waiting... ($i/60)"
   sleep 3
 done

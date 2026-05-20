@@ -70,6 +70,8 @@ Response (Vulnerable mode):
 }
 ```
 
+`attemptsRemaining: null` means the server has no attempt counter at all — the concept doesn't exist in the vulnerable implementation, so there is nothing to report. This is itself a signal: a `null` where a rate-limit value should be is a reliable indicator that the protection is absent.
+
 Response (Fixed mode):
 ```json
 {
@@ -79,6 +81,8 @@ Response (Fixed mode):
   ...
 }
 ```
+
+`attemptsRemaining: 5` confirms the counter was initialised when the challenge was created. Each wrong guess decrements it; reaching 0 invalidates the challenge.
 
 ---
 
