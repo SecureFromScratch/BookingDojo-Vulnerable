@@ -7,7 +7,9 @@ echo "============================================"
 
 echo ""
 echo "[0/5] Installing AWS CLI..."
-sudo apt-get update -qq && sudo apt-get install -y -qq awscli
+APT_CMD="apt-get"
+command -v sudo &>/dev/null && APT_CMD="sudo apt-get"
+$APT_CMD update -qq && $APT_CMD install -y -qq awscli
 
 # Wait for Docker daemon to be ready and able to pull images
 echo "[1/5] Waiting for Docker daemon..."
@@ -18,7 +20,7 @@ sleep 3
 # Start PostgreSQL and LocalStack via docker-compose (retry on transient EOF)
 echo "[2/5] Starting PostgreSQL and LocalStack..."
 for attempt in 1 2 3 4 5; do
-  docker-compose up -d postgres localstack && break
+  docker compose up -d postgres localstack && break
   echo "  Attempt $attempt failed, retrying in 5s..."
   sleep 5
 done
