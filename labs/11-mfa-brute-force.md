@@ -3,7 +3,6 @@
 **Difficulty:** Intermediate  
 **Category:** Authentication Failures / Brute Force  
 **OWASP Top 10:** A07:2021 — Identification and Authentication Failures  
-
 ---
 
 ## Learning objectives

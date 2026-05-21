@@ -3,7 +3,6 @@
 **Difficulty:** Intermediate  
 **Category:** Sensitive Data Exposure / PII Storage  
 **OWASP Top 10:** A02:2021 — Cryptographic Failures  
-
 ---
 
 ## Learning objectives
