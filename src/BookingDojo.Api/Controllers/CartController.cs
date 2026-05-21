@@ -2,11 +2,9 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Models;
-using BookingDojo.Api.Workshop;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace BookingDojo.Api.Controllers;
 
@@ -16,12 +14,10 @@ namespace BookingDojo.Api.Controllers;
 public class CartController : ControllerBase
 {
     private readonly BookingDojoDbContext _db;
-    private readonly IOptions<WorkshopOptions> _workshop;
 
-    public CartController(BookingDojoDbContext db, IOptions<WorkshopOptions> workshop)
+    public CartController(BookingDojoDbContext db)
     {
         _db = db;
-        _workshop = workshop;
     }
 
     private Guid UserId => Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
@@ -57,7 +53,7 @@ public class CartController : ControllerBase
         var cart = await GetOrCreateCart();
 
         var lastFour = request.CardNumber[^4..];
-        var storedCardNumber = _workshop.Value.CardPiiStorage == "Vulnerable" ? request.CardNumber : (string?)null;
+        var storedCardNumber = request.CardNumber;
 
         var item = new CartItem
         {

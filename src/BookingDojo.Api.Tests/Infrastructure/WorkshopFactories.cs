@@ -1,75 +1,15 @@
-using BookingDojo.Api.Workshop;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.DependencyInjection;
-
 namespace BookingDojo.Api.Tests.Infrastructure;
 
-public class VulnerableWorkshopFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-            services.PostConfigure<WorkshopOptions>(o => o.BookingIdorAccess = "Vulnerable"));
-    }
-}
+// In the vulnerable-clean branch there is only one mode (vulnerable).
+// All workshop factories are simply aliases for CustomWebApplicationFactory.
 
-// SQLi fixed (so LINQ runs against InMemory), resource consumption vulnerable
-// Used to test the client-controlled pageSize behaviour without SQL injection noise.
-public class ResourceConsumptionVulnerableFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-            services.PostConfigure<WorkshopOptions>(o =>
-            {
-                o.BookingSearchSqlInjection = "Fixed";
-                o.BookingSearchResourceConsumption = "Vulnerable";
-            }));
-    }
-}
+public class VulnerableWorkshopFactory : CustomWebApplicationFactory { }
 
-public class VulnerableCouponCartFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-            services.PostConfigure<WorkshopOptions>(o => o.CouponRedemptionRaceCondition = "Vulnerable"));
-    }
-}
+// SQLi and resource consumption are both always vulnerable in this branch.
+public class ResourceConsumptionVulnerableFactory : CustomWebApplicationFactory { }
 
-public class FixedCouponCartFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-            services.PostConfigure<WorkshopOptions>(o => o.CouponRedemptionRaceCondition = "Fixed"));
-    }
-}
+public class VulnerableCouponCartFactory : CustomWebApplicationFactory { }
 
-public class FixedWorkshopFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-            services.PostConfigure<WorkshopOptions>(o =>
-            {
-                o.BookingIdorAccess = "Fixed";
-                o.BookingSearchSqlInjection = "Fixed";
-                o.CardPiiStorage = "Fixed";
-                o.MfaBruteForceProtection = "Fixed";
-                o.LogInjection = "Fixed";
-                o.AuditLogDeletion = "Fixed";
-                o.LoginSqlInjection = "Fixed";
-                o.BookingSearchResourceConsumption = "Fixed";
-                o.CouponRedemptionRaceCondition = "Fixed";
-                o.PasswordResetRaceCondition = "Fixed";
-                o.WebhookSsrf = "Fixed";
-                o.ExceptionDetailDisclosure = "Fixed";
-            }));
-    }
-}
+public class FixedCouponCartFactory : CustomWebApplicationFactory { }
+
+public class FixedWorkshopFactory : CustomWebApplicationFactory { }

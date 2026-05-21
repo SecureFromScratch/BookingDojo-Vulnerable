@@ -4,9 +4,6 @@ using System.Text;
 using System.Text.Json;
 using BookingDojo.Api.Models;
 using BookingDojo.Api.Tests.Infrastructure;
-using BookingDojo.Api.Workshop;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace BookingDojo.Api.Tests;
 
@@ -37,17 +34,9 @@ file static class PasswordResetSeed
 }
 
 // ─── Vulnerable factory ───────────────────────────────────────────────────────
+// In the vulnerable-clean branch password reset is always vulnerable (TOCTOU race condition).
 
-public class VulnerablePasswordResetFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-            services.PostConfigure<WorkshopOptions>(o =>
-                o.PasswordResetRaceCondition = "Vulnerable"));
-    }
-}
+public class VulnerablePasswordResetFactory : CustomWebApplicationFactory { }
 
 // ─── Vulnerable mode tests ────────────────────────────────────────────────────
 

@@ -4,43 +4,15 @@ using System.Text;
 using System.Text.Json;
 using BookingDojo.Api.Models;
 using BookingDojo.Api.Tests.Infrastructure;
-using BookingDojo.Api.Workshop;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace BookingDojo.Api.Tests;
 
 // ─── Factories ────────────────────────────────────────────────────────────────
+// In the vulnerable-clean branch all modes are always vulnerable — no configuration needed.
 
-public class AuditVulnerableFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-            services.PostConfigure<WorkshopOptions>(o =>
-            {
-                o.LoginSqlInjection = "Fixed";   // raw SQL path requires PostgreSQL; InMemory tests need LINQ
-                o.LogInjection      = "Vulnerable";
-                o.AuditLogDeletion  = "Vulnerable";
-            }));
-    }
-}
+public class AuditVulnerableFactory : CustomWebApplicationFactory { }
 
-public class AuditFixedFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-            services.PostConfigure<WorkshopOptions>(o =>
-            {
-                o.LoginSqlInjection = "Fixed";   // raw SQL path requires PostgreSQL; InMemory tests need LINQ
-                o.LogInjection      = "Fixed";
-                o.AuditLogDeletion  = "Fixed";
-            }));
-    }
-}
+public class AuditFixedFactory : CustomWebApplicationFactory { }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 

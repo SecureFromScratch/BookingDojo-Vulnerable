@@ -1,13 +1,10 @@
 using System.IdentityModel.Tokens.Jwt;
-using System.Net;
 using System.Security.Claims;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Models;
-using BookingDojo.Api.Workshop;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace BookingDojo.Api.Controllers;
 
@@ -18,13 +15,11 @@ public class ProfileController : ControllerBase
 {
     private readonly BookingDojoDbContext _db;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IOptions<WorkshopOptions> _workshop;
 
-    public ProfileController(BookingDojoDbContext db, IHttpClientFactory httpClientFactory, IOptions<WorkshopOptions> workshop)
+    public ProfileController(BookingDojoDbContext db, IHttpClientFactory httpClientFactory)
     {
         _db = db;
         _httpClientFactory = httpClientFactory;
-        _workshop = workshop;
     }
 
     [HttpGet]
@@ -84,92 +79,29 @@ public class ProfileController : ControllerBase
         var user = await _db.Users.FindAsync(userId);
         if (user == null) return NotFound();
 
-        if (_workshop.Value.ProfileAvatarSsrf == "Vulnerable")
+        // VULNERABLE PATH
+        // The server fetches any URL the caller provides — no host or IP validation.
+        // This allows the caller to read internal-only endpoints that the browser
+        // cannot reach directly (internal APIs, cloud metadata, etc.).
+        var client = _httpClientFactory.CreateClient("profile");
+        try
         {
-            // WORKSHOP: VULNERABLE PATH
-            // The server fetches any URL the caller provides — no host or IP validation.
-            // This allows the caller to read internal-only endpoints that the browser
-            // cannot reach directly (internal APIs, cloud metadata, etc.).
-            var client = _httpClientFactory.CreateClient("profile");
-            try
-            {
-                var response = await client.GetAsync(request.Url);
-                var body = await response.Content.ReadAsStringAsync();
-                if (body.Length > 4000) body = body[..4000] + "\n…[truncated]";
-
-                user.AvatarUrl = request.Url;
-                await _db.SaveChangesAsync();
-
-                return Ok(new AvatarFetchResponse(request.Url, (int)response.StatusCode, body, null));
-            }
-            catch (HttpRequestException ex)
-            {
-                return Ok(new AvatarFetchResponse(request.Url, null, null, ex.Message));
-            }
-            catch (TaskCanceledException)
-            {
-                return Ok(new AvatarFetchResponse(request.Url, null, null, "Request timed out"));
-            }
-        }
-        else
-        {
-            // WORKSHOP: FIXED PATH
-            if (!IsAllowedUrl(request.Url, out var reason))
-                return BadRequest(new { message = $"URL not allowed: {reason}" });
+            var response = await client.GetAsync(request.Url);
+            var body = await response.Content.ReadAsStringAsync();
+            if (body.Length > 4000) body = body[..4000] + "\n…[truncated]";
 
             user.AvatarUrl = request.Url;
             await _db.SaveChangesAsync();
 
-            return Ok(new { message = "Avatar URL updated", avatarUrl = request.Url });
+            return Ok(new AvatarFetchResponse(request.Url, (int)response.StatusCode, body, null));
         }
-    }
-
-    private static bool IsAllowedUrl(string url, out string reason)
-    {
-        reason = "";
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        catch (HttpRequestException ex)
         {
-            reason = "not a valid absolute URL";
-            return false;
+            return Ok(new AvatarFetchResponse(request.Url, null, null, ex.Message));
         }
-
-        if (uri.Scheme != "https")
+        catch (TaskCanceledException)
         {
-            reason = "only HTTPS is permitted";
-            return false;
+            return Ok(new AvatarFetchResponse(request.Url, null, null, "Request timed out"));
         }
-
-        var host = uri.Host.ToLowerInvariant();
-
-        if (host is "localhost" or "127.0.0.1" or "::1" or "0.0.0.0")
-        {
-            reason = "loopback addresses are not permitted";
-            return false;
-        }
-
-        if (host.EndsWith(".local") || host.EndsWith(".internal") || host.EndsWith(".localhost"))
-        {
-            reason = "internal hostnames are not permitted";
-            return false;
-        }
-
-        if (IPAddress.TryParse(host, out var ip))
-        {
-            var b = ip.GetAddressBytes();
-            if (b.Length == 4)
-            {
-                if (b[0] == 10
-                    || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
-                    || (b[0] == 192 && b[1] == 168)
-                    || (b[0] == 169 && b[1] == 254)
-                    || b[0] == 127)
-                {
-                    reason = "private and link-local IP ranges are not permitted";
-                    return false;
-                }
-            }
-        }
-
-        return true;
     }
 }

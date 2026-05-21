@@ -1,13 +1,10 @@
 using System.IdentityModel.Tokens.Jwt;
-using System.Net;
 using System.Security.Claims;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Models;
-using BookingDojo.Api.Workshop;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace BookingDojo.Api.Controllers;
 
@@ -17,13 +14,11 @@ namespace BookingDojo.Api.Controllers;
 public class WebhooksController : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IOptions<WorkshopOptions> _workshop;
     private readonly BookingDojoDbContext _db;
 
-    public WebhooksController(IHttpClientFactory httpClientFactory, IOptions<WorkshopOptions> workshop, BookingDojoDbContext db)
+    public WebhooksController(IHttpClientFactory httpClientFactory, BookingDojoDbContext db)
     {
         _httpClientFactory = httpClientFactory;
-        _workshop = workshop;
         _db = db;
     }
 
@@ -45,12 +40,7 @@ public class WebhooksController : ControllerBase
         if (!Uri.TryCreate(request.Url, UriKind.Absolute, out _))
             return BadRequest(new { message = "Invalid URL format" });
 
-        if (_workshop.Value.WebhookSsrf == "Fixed")
-        {
-            if (!IsAllowedUrl(request.Url, out var reason))
-                return BadRequest(new { message = $"URL not allowed: {reason}" });
-        }
-
+        // VULNERABLE PATH — no URL validation, any URL is accepted (SSRF)
         var userId = Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
         var webhook = new Webhook { UserId = userId, Url = request.Url };
         _db.Webhooks.Add(webhook);
@@ -82,12 +72,7 @@ public class WebhooksController : ControllerBase
         if (!Uri.TryCreate(request.Url, UriKind.Absolute, out _))
             return BadRequest(new { message = "Invalid URL format" });
 
-        if (_workshop.Value.WebhookSsrf == "Fixed")
-        {
-            if (!IsAllowedUrl(request.Url, out var reason))
-                return BadRequest(new { message = $"URL not allowed: {reason}" });
-        }
-
+        // VULNERABLE PATH — no URL validation, any URL is fetched (SSRF)
         var (statusCode, body, error) = await PingUrl(request.Url);
         return Ok(new { url = request.Url, statusCode, body, error });
     }
@@ -113,59 +98,5 @@ public class WebhooksController : ControllerBase
         {
             return (null, null, "Request timed out");
         }
-    }
-
-    private static bool IsAllowedUrl(string url, out string reason)
-    {
-        reason = "";
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
-        {
-            reason = "not a valid absolute URL";
-            return false;
-        }
-
-        if (uri.Scheme != "https")
-        {
-            reason = "only HTTPS is permitted";
-            return false;
-        }
-
-        var host = uri.Host.ToLowerInvariant();
-
-        if (host is "localhost" or "127.0.0.1" or "::1" or "0.0.0.0")
-        {
-            reason = "loopback addresses are not permitted";
-            return false;
-        }
-
-        if (host.EndsWith(".local") || host.EndsWith(".internal") || host.EndsWith(".localhost"))
-        {
-            reason = "internal hostnames are not permitted";
-            return false;
-        }
-
-        if (IPAddress.TryParse(host, out var ip))
-        {
-            var b = ip.GetAddressBytes();
-            if (b.Length == 4)
-            {
-                if (b[0] == 10
-                    || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
-                    || (b[0] == 192 && b[1] == 168)
-                    || (b[0] == 169 && b[1] == 254)
-                    || b[0] == 127)
-                {
-                    reason = "private and link-local IP ranges are not permitted";
-                    return false;
-                }
-            }
-            else if (b.Length == 16 && b[0] == 0xfe && (b[1] & 0xc0) == 0x80)
-            {
-                reason = "IPv6 link-local addresses are not permitted";
-                return false;
-            }
-        }
-
-        return true;
     }
 }

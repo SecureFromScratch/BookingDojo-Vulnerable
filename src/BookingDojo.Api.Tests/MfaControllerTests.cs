@@ -3,33 +3,15 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using BookingDojo.Api.Tests.Infrastructure;
-using BookingDojo.Api.Workshop;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace BookingDojo.Api.Tests;
 
 // ─── Factories ────────────────────────────────────────────────────────────────
+// In the vulnerable-clean branch MFA brute force protection is always absent.
 
-public class MfaVulnerableFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-            services.PostConfigure<WorkshopOptions>(o => o.MfaBruteForceProtection = "Vulnerable"));
-    }
-}
+public class MfaVulnerableFactory : CustomWebApplicationFactory { }
 
-public class MfaFixedFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-            services.PostConfigure<WorkshopOptions>(o => o.MfaBruteForceProtection = "Fixed"));
-    }
-}
+public class MfaFixedFactory : CustomWebApplicationFactory { }
 
 // ─── Base ─────────────────────────────────────────────────────────────────────
 

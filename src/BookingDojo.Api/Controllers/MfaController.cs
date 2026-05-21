@@ -3,11 +3,9 @@ using System.Security.Claims;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Models;
 using BookingDojo.Api.Services;
-using BookingDojo.Api.Workshop;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace BookingDojo.Api.Controllers;
 
@@ -17,16 +15,13 @@ namespace BookingDojo.Api.Controllers;
 public class MfaController : ControllerBase
 {
     private readonly BookingDojoDbContext _db;
-    private readonly IOptions<WorkshopOptions> _workshop;
     private readonly AuthService _authService;
 
-    private const int MaxAttempts = 5;
     private const int OtpTtlMinutes = 10;
 
-    public MfaController(BookingDojoDbContext db, IOptions<WorkshopOptions> workshop, AuthService authService)
+    public MfaController(BookingDojoDbContext db, AuthService authService)
     {
         _db = db;
-        _workshop = workshop;
         _authService = authService;
     }
 
@@ -70,9 +65,8 @@ public class MfaController : ControllerBase
         if (challenge == null)
             return NotFound(new { message = "No active challenge. Call POST /api/auth/mfa/challenge first." });
 
-        var attemptsLeft = _workshop.Value.MfaBruteForceProtection == "Fixed"
-            ? MaxAttempts - challenge.AttemptCount
-            : (int?)null;
+        // VULNERABLE PATH: no attempt limit — attemptsRemaining is always null
+        var attemptsLeft = (int?)null;
 
         return Ok(new
         {
@@ -84,7 +78,7 @@ public class MfaController : ControllerBase
     }
 
     // POST /api/auth/mfa/verify
-    // Validates the OTP. Vulnerable: unlimited retries. Fixed: locks out after MaxAttempts.
+    // Vulnerable: unlimited retries.
     [HttpPost("verify")]
     public async Task<IActionResult> Verify([FromBody] MfaVerifyRequest request)
     {
@@ -92,32 +86,11 @@ public class MfaController : ControllerBase
         if (challenge == null)
             return NotFound(new { message = "No active challenge. Call POST /api/auth/mfa/challenge first." });
 
-        if (_workshop.Value.MfaBruteForceProtection == "Fixed")
-        {
-            if (challenge.AttemptCount >= MaxAttempts)
-            {
-                _db.MfaChallenges.Remove(challenge);
-                await _db.SaveChangesAsync();
-                return StatusCode(429, new { message = "Too many failed attempts. Challenge invalidated — request a new one." });
-            }
-        }
-
         if (challenge.Code != request.Code)
         {
             challenge.AttemptCount++;
             await _db.SaveChangesAsync();
-
-            if (_workshop.Value.MfaBruteForceProtection == "Fixed" && challenge.AttemptCount >= MaxAttempts)
-            {
-                _db.MfaChallenges.Remove(challenge);
-                await _db.SaveChangesAsync();
-                return StatusCode(429, new { message = "Too many failed attempts. Challenge invalidated — request a new one." });
-            }
-
-            var attemptsLeft = _workshop.Value.MfaBruteForceProtection == "Fixed"
-                ? (int?)(MaxAttempts - challenge.AttemptCount)
-                : null;
-            return Unauthorized(new { message = "Incorrect code.", attemptsRemaining = attemptsLeft });
+            return Unauthorized(new { message = "Incorrect code.", attemptsRemaining = (int?)null });
         }
 
         challenge.VerifiedAt = DateTime.UtcNow;

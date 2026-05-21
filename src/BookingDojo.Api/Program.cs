@@ -4,11 +4,9 @@ using Amazon.Runtime;
 using BookingDojo.Api.Authorization;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Services;
-using BookingDojo.Api.Workshop;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 
@@ -50,10 +48,6 @@ builder.Services.AddHttpClient("profile", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);
 });
-
-// Workshop options
-builder.Services.Configure<WorkshopOptions>(
-    builder.Configuration.GetSection(WorkshopOptions.Section));
 
 // JWT Authentication
 var jwtSecret = builder.Configuration["BookingDojo:Jwt:Secret"]!;
@@ -155,38 +149,21 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Lab 09 — Exception Detail Disclosure: reads WorkshopOptions per-request so test overrides work
+// VULNERABLE PATH: Exception Detail Disclosure — returns full exception details
 app.Use(async (ctx, next) =>
 {
-    try
-    {
-        await next(ctx);
-    }
+    try { await next(ctx); }
     catch (Exception ex)
     {
-        var opts = ctx.RequestServices
-            .GetRequiredService<IOptions<WorkshopOptions>>().Value;
-
         ctx.Response.StatusCode  = 500;
         ctx.Response.ContentType = "application/json";
-
-        if (opts.ExceptionDetailDisclosure == "Vulnerable")
+        await ctx.Response.WriteAsJsonAsync(new
         {
-            await ctx.Response.WriteAsJsonAsync(new
-            {
-                error      = ex.Message,
-                type       = ex.GetType().FullName,
-                source     = ex.Source,
-                stackTrace = ex.StackTrace
-            });
-        }
-        else
-        {
-            await ctx.Response.WriteAsJsonAsync(new
-            {
-                message = "An internal error occurred."
-            });
-        }
+            error      = ex.Message,
+            type       = ex.GetType().FullName,
+            source     = ex.Source,
+            stackTrace = ex.StackTrace
+        });
     }
 });
 

@@ -2,24 +2,13 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using BookingDojo.Api.Tests.Infrastructure;
-using BookingDojo.Api.Workshop;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace BookingDojo.Api.Tests;
 
 // ─── Vulnerable factory ───────────────────────────────────────────────────────
+// In the vulnerable-clean branch exception details are always disclosed.
 
-public class VulnerableExceptionFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-            services.PostConfigure<WorkshopOptions>(o =>
-                o.ExceptionDetailDisclosure = "Vulnerable"));
-    }
-}
+public class VulnerableExceptionFactory : CustomWebApplicationFactory { }
 
 // ─── Vulnerable mode tests ────────────────────────────────────────────────────
 

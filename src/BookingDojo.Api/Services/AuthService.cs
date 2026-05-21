@@ -5,9 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Models;
-using BookingDojo.Api.Workshop;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 namespace BookingDojo.Api.Services;
@@ -16,73 +14,61 @@ public class AuthService
 {
     private readonly BookingDojoDbContext _db;
     private readonly IConfiguration _config;
-    private readonly IOptions<WorkshopOptions> _workshop;
 
-    public AuthService(BookingDojoDbContext db, IConfiguration config, IOptions<WorkshopOptions> workshop)
+    public AuthService(BookingDojoDbContext db, IConfiguration config)
     {
         _db = db;
         _config = config;
-        _workshop = workshop;
     }
 
     public async Task<(bool Success, string? Jwt, string? RefreshToken, User? User)> LoginAsync(string username, string password)
     {
         User? user;
 
-        if (_workshop.Value.LoginSqlInjection == "Vulnerable")
-        {
-            // WORKSHOP: VULNERABLE PATH
-            // The username is concatenated directly into raw SQL.
-            // The endpoint returns only 200 or 401 — no query data is echoed back.
-            //
-            // Username enumeration (sleeps 3s only if 'admin' exists):
-            //   x' OR 1=(SELECT 1 FROM pg_sleep(CASE WHEN
-            //     (SELECT COUNT(*) FROM bookingdojo."Users" WHERE "Username"='admin')>0
-            //     THEN 3 ELSE 0 END))--
-            //
-            // Conditional hash extraction (sleeps 3s when condition is true):
-            //   admin' AND 1=(SELECT 1 FROM pg_sleep(
-            //     CASE WHEN SUBSTRING("PasswordHash",1,1)='$' THEN 3 ELSE 0 END))--
-            var sql = $"""
-                SELECT "Id", "Username", "PasswordHash", "Role", "PartnerId"
-                FROM bookingdojo."Users"
-                WHERE "Username" = '{username}'
-                """;
+        // VULNERABLE PATH
+        // The username is concatenated directly into raw SQL.
+        // The endpoint returns only 200 or 401 — no query data is echoed back.
+        //
+        // Username enumeration (sleeps 3s only if 'admin' exists):
+        //   x' OR 1=(SELECT 1 FROM pg_sleep(CASE WHEN
+        //     (SELECT COUNT(*) FROM bookingdojo."Users" WHERE "Username"='admin')>0
+        //     THEN 3 ELSE 0 END))--
+        //
+        // Conditional hash extraction (sleeps 3s when condition is true):
+        //   admin' AND 1=(SELECT 1 FROM pg_sleep(
+        //     CASE WHEN SUBSTRING("PasswordHash",1,1)='$' THEN 3 ELSE 0 END))--
+        var sql = $"""
+            SELECT "Id", "Username", "PasswordHash", "Role", "PartnerId"
+            FROM bookingdojo."Users"
+            WHERE "Username" = '{username}'
+            """;
 
-            user = null;
-            var conn = _db.Database.GetDbConnection();
-            var needsClose = conn.State != ConnectionState.Open;
-            if (needsClose) await conn.OpenAsync();
-            try
+        user = null;
+        var conn = _db.Database.GetDbConnection();
+        var needsClose = conn.State != ConnectionState.Open;
+        if (needsClose) await conn.OpenAsync();
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = sql;
+            using var reader = await cmd.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
             {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = sql;
-                using var reader = await cmd.ExecuteReaderAsync();
-                if (await reader.ReadAsync())
+                user = new User
                 {
-                    user = new User
-                    {
-                        Id          = reader.GetGuid(reader.GetOrdinal("Id")),
-                        Username    = reader.GetString(reader.GetOrdinal("Username")),
-                        PasswordHash = reader.GetString(reader.GetOrdinal("PasswordHash")),
-                        Role        = reader.GetString(reader.GetOrdinal("Role")),
-                        PartnerId   = reader.IsDBNull(reader.GetOrdinal("PartnerId"))
-                                        ? null
-                                        : reader.GetGuid(reader.GetOrdinal("PartnerId")),
-                    };
-                }
-            }
-            finally
-            {
-                if (needsClose) await conn.CloseAsync();
+                    Id          = reader.GetGuid(reader.GetOrdinal("Id")),
+                    Username    = reader.GetString(reader.GetOrdinal("Username")),
+                    PasswordHash = reader.GetString(reader.GetOrdinal("PasswordHash")),
+                    Role        = reader.GetString(reader.GetOrdinal("Role")),
+                    PartnerId   = reader.IsDBNull(reader.GetOrdinal("PartnerId"))
+                                    ? null
+                                    : reader.GetGuid(reader.GetOrdinal("PartnerId")),
+                };
             }
         }
-        else
+        finally
         {
-            // WORKSHOP: FIXED PATH
-            // username is bound as a SQL parameter — injection not possible.
-            user = await _db.Users
-                .FirstOrDefaultAsync(u => u.Username == username);
+            if (needsClose) await conn.CloseAsync();
         }
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))

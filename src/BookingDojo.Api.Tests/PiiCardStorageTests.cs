@@ -4,41 +4,15 @@ using System.Text;
 using System.Text.Json;
 using BookingDojo.Api.Models;
 using BookingDojo.Api.Tests.Infrastructure;
-using BookingDojo.Api.Workshop;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace BookingDojo.Api.Tests;
 
 // ─── Workshop factories ───────────────────────────────────────────────────────
+// In the vulnerable-clean branch PII storage is always vulnerable (full card number stored).
 
-public class PiiVulnerableFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-            services.PostConfigure<WorkshopOptions>(o =>
-            {
-                o.CardPiiStorage = "Vulnerable";
-                o.BookingIdorAccess = "Vulnerable";
-            }));
-    }
-}
+public class PiiVulnerableFactory : CustomWebApplicationFactory { }
 
-public class PiiFixedFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-            services.PostConfigure<WorkshopOptions>(o =>
-            {
-                o.CardPiiStorage = "Fixed";
-                o.BookingIdorAccess = "Vulnerable"; // keep IDOR open to test PII exposure
-            }));
-    }
-}
+public class PiiFixedFactory : CustomWebApplicationFactory { }
 
 // ─── Shared seed ─────────────────────────────────────────────────────────────
 

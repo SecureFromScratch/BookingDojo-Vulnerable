@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using BookingDojo.Api.Tests.Infrastructure;
-using BookingDojo.Api.Workshop;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -27,6 +26,7 @@ file sealed class FakeWebhookMessageHandler : HttpMessageHandler
 }
 
 // ─── Test factories ───────────────────────────────────────────────────────────
+// In the vulnerable-clean branch SSRF validation is always absent — no configuration needed.
 
 public class VulnerableWebhookFactory : CustomWebApplicationFactory
 {
@@ -35,7 +35,6 @@ public class VulnerableWebhookFactory : CustomWebApplicationFactory
         base.ConfigureWebHost(builder);
         builder.ConfigureServices(services =>
         {
-            services.PostConfigure<WorkshopOptions>(o => o.WebhookSsrf = "Vulnerable");
             services.AddHttpClient("webhook")
                 .ConfigurePrimaryHttpMessageHandler(() => new FakeWebhookMessageHandler());
         });
@@ -49,17 +48,6 @@ public class FixedWebhookFactory : CustomWebApplicationFactory
         base.ConfigureWebHost(builder);
         builder.ConfigureServices(services =>
         {
-            services.PostConfigure<WorkshopOptions>(o =>
-            {
-                o.BookingIdorAccess = "Fixed";
-                o.BookingSearchSqlInjection = "Fixed";
-                o.LoginSqlInjection = "Fixed";
-                o.BookingSearchResourceConsumption = "Fixed";
-                o.CouponRedemptionRaceCondition = "Fixed";
-                o.PasswordResetRaceCondition = "Fixed";
-                o.WebhookSsrf = "Fixed";
-                o.ExceptionDetailDisclosure = "Fixed";
-            });
             services.AddHttpClient("webhook")
                 .ConfigurePrimaryHttpMessageHandler(() => new FakeWebhookMessageHandler());
         });

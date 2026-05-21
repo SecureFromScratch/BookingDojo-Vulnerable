@@ -1,9 +1,7 @@
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Models;
-using BookingDojo.Api.Workshop;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace BookingDojo.Api.Controllers;
 
@@ -12,12 +10,10 @@ namespace BookingDojo.Api.Controllers;
 public class PasswordResetController : ControllerBase
 {
     private readonly BookingDojoDbContext _db;
-    private readonly IOptions<WorkshopOptions> _workshop;
 
-    public PasswordResetController(BookingDojoDbContext db, IOptions<WorkshopOptions> workshop)
+    public PasswordResetController(BookingDojoDbContext db)
     {
         _db = db;
-        _workshop = workshop;
     }
 
     // In a real system this would send an email. For the workshop the token is returned directly
@@ -62,70 +58,26 @@ public class PasswordResetController : ControllerBase
 
         var now = DateTime.UtcNow;
 
-        if (_workshop.Value.PasswordResetRaceCondition == "Vulnerable")
-        {
-            // WORKSHOP: VULNERABLE PATH (TOCTOU race condition)
-            // Time of Check: read and validate the token
-            var token = await _db.PasswordResetTokens
-                .Include(t => t.User)
-                .FirstOrDefaultAsync(t => t.Token == request.Token
-                                       && t.UsedAt == null
-                                       && t.ExpiresAt > now);
+        // VULNERABLE PATH (TOCTOU race condition)
+        // Time of Check: read and validate the token
+        var token = await _db.PasswordResetTokens
+            .Include(t => t.User)
+            .FirstOrDefaultAsync(t => t.Token == request.Token
+                                   && t.UsedAt == null
+                                   && t.ExpiresAt > now);
 
-            if (token == null)
-                return BadRequest(new { message = "Invalid or expired reset token" });
+        if (token == null)
+            return BadRequest(new { message = "Invalid or expired reset token" });
 
-            // Race window — artificial delay lets concurrent requests both pass the check above
-            // before either writes. Both will mark the token used and set the password.
-            await Task.Delay(500);
+        // Race window — artificial delay lets concurrent requests both pass the check above
+        // before either writes. Both will mark the token used and set the password.
+        await Task.Delay(500);
 
-            // Time of Use: mark used and update password
-            token.UsedAt = DateTime.UtcNow;
-            token.User.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-            await _db.SaveChangesAsync();
+        // Time of Use: mark used and update password
+        token.UsedAt = DateTime.UtcNow;
+        token.User.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        await _db.SaveChangesAsync();
 
-            return Ok(new { message = "Password reset successfully" });
-        }
-        else
-        {
-            // WORKSHOP: FIXED PATH
-            // Atomic UPDATE: only the first concurrent request satisfies UsedAt IS NULL.
-            if (_db.Database.IsRelational())
-            {
-                var markedAt = DateTime.UtcNow;
-                var rows = await _db.Database.ExecuteSqlRawAsync(
-                    "UPDATE bookingdojo.\"PasswordResetTokens\" " +
-                    "SET \"UsedAt\" = {0} " +
-                    "WHERE \"Token\" = {1} AND \"UsedAt\" IS NULL AND \"ExpiresAt\" > {2}",
-                    markedAt, request.Token, now);
-
-                if (rows == 0)
-                    return Conflict(new { message = "Invalid, expired, or already-used reset token" });
-
-                var tokenRecord = await _db.PasswordResetTokens
-                    .Include(t => t.User)
-                    .FirstOrDefaultAsync(t => t.Token == request.Token);
-
-                tokenRecord!.User.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-                await _db.SaveChangesAsync();
-                return Ok(new { message = "Password reset successfully" });
-            }
-            else
-            {
-                // InMemory fallback for integration tests
-                var token = await _db.PasswordResetTokens
-                    .Include(t => t.User)
-                    .FirstOrDefaultAsync(t => t.Token == request.Token
-                                           && t.UsedAt == null
-                                           && t.ExpiresAt > now);
-                if (token == null)
-                    return Conflict(new { message = "Invalid, expired, or already-used reset token" });
-
-                token.UsedAt = DateTime.UtcNow;
-                token.User.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-                await _db.SaveChangesAsync();
-                return Ok(new { message = "Password reset successfully" });
-            }
-        }
+        return Ok(new { message = "Password reset successfully" });
     }
 }
