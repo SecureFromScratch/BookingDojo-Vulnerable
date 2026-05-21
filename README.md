@@ -48,6 +48,8 @@ If any check fails the script prints the exact command to fix it.
 
 > Subsequent opens of the same Codespace resume in seconds. Only the first build is slow.
 
+> **When you're done, delete the Codespace to avoid consuming your GitHub credits.** Click the **three-dot menu (...)** next to your Codespace at github.com/codespaces and choose **Delete**.
+
 ## Quick Start (Local)
 
 ```bash
