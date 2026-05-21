@@ -70,8 +70,7 @@ bash scripts/reset-db.sh
 ## Step 2 — Understand the vulnerable code
 
 ```csharp
-// WORKSHOP: VULNERABLE PATH (TOCTOU)
-// Time of Check
+// Time of Check (TOCTOU)
 var coupon = await _db.Coupons.FirstOrDefaultAsync(c => c.Code == request.Code);
 if (coupon.UsesCount >= coupon.MaxUses)
     return Conflict(...);

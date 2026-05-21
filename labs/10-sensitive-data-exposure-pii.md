@@ -81,8 +81,6 @@ curl -s http://localhost:5000/api/bookings \
 
 ## Step 2 – Combine with IDOR to steal another user's card
 
-Switch to **Vulnerable** mode for both `CardPiiStorage` and `BookingIdorAccess`.
-
 The seeded data already has two meaningful bookings:
 - Booking **#1** — admin's card: `4111111111111234`
 - Booking **#2** — partner's card: `5500005555554242`

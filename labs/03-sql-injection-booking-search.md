@@ -220,7 +220,6 @@ In the results table, rows where **Hotel = PWNED** contain the full credential d
 Open `src/BookingDojo.Api/Controllers/BookingsController.cs` and find `SearchBookings`:
 
 ```csharp
-// WORKSHOP: VULNERABLE PATH
 var sql = $"""
     SELECT b."Id", b."UserId", ...
     FROM bookingdojo."Bookings" b
@@ -265,7 +264,6 @@ SearchBookings(q = "%' OR '1'='1' --")
 The fixed code path:
 
 ```csharp
-// WORKSHOP: FIXED PATH
 // userId goes to PostgreSQL as a typed parameter — q never touches SQL at all.
 var allUserBookings = await _db.Bookings
     .Include(b => b.Hotel)

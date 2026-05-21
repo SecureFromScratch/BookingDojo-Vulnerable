@@ -221,7 +221,6 @@ AuthService.LoginAsync()
 The fixed code:
 
 ```csharp
-// WORKSHOP: FIXED PATH
 user = await _db.Users
     .FirstOrDefaultAsync(u => u.Username == username);
 ```

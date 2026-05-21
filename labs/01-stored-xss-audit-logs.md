@@ -65,13 +65,10 @@ Log in as `admin / Admin1234!` (or `support / Support1234!`) and navigate to **A
 **File:** `src/BookingDojo.Api/Controllers/AuditLogsController.cs`
 
 ```csharp
-if (_workshopOptions.Value.StoredXssAuditLogs == "Vulnerable")
-{
-    // Details is returned as-is — the HTML payload from the database
-    // is sent directly to the browser with no encoding.
-    return Ok(logs.Select(l => new AuditLogDto(
-        l.Id, l.Timestamp, l.Username, l.Action, l.Details)));
-}
+// Details is returned as-is — the HTML payload from the database
+// is sent directly to the browser with no encoding.
+return Ok(logs.Select(l => new AuditLogDto(
+    l.Id, l.Timestamp, l.Username, l.Action, l.Details)));
 ```
 
 ### The vulnerable client-side code

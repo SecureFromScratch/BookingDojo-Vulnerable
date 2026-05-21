@@ -123,7 +123,6 @@ ps aux | grep BookingDojo.Api | awk '{print $6 " KB RSS"}'
 The fixed code:
 
 ```csharp
-// WORKSHOP: FIXED PATH — client-supplied pageSize is intentionally ignored
 const int MaxResults = 10;
 if (results.Count > MaxResults)
 {
