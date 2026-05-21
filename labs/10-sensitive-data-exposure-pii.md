@@ -1,5 +1,11 @@
 # Lab 10 – Sensitive Data Exposure: Credit Card PII Storage
 
+**Difficulty:** Intermediate  
+**Category:** Sensitive Data Exposure / PII Storage  
+**OWASP Top 10:** A02:2021 — Cryptographic Failures  
+
+---
+
 ## Learning objectives
 
 - Understand why storing more sensitive data than necessary creates risk

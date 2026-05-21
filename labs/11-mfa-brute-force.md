@@ -1,5 +1,11 @@
 # Lab 11 – Brute Force MFA Protection
 
+**Difficulty:** Intermediate  
+**Category:** Authentication Failures / Brute Force  
+**OWASP Top 10:** A07:2021 — Identification and Authentication Failures  
+
+---
+
 ## Learning objectives
 
 - Understand why short OTPs without rate limiting are trivially enumerable
