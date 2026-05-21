@@ -140,8 +140,6 @@ The table shows all log entries. Find your own `LOGIN_SUCCESS` row (it will be a
 
 Log in as `admin / Admin1234!` and check the Audit Logs — the SupportUser's login entry is simply gone. There is no `LOG_ENTRY_DELETED` record because the vulnerable path writes nothing.
 
-Switch `AuditLogDeletion` to `"Fixed"` and repeat: the Delete button returns an error for SupportUser (`403 Forbidden`), and when AdminUser deletes, a `LOG_ENTRY_DELETED` entry appears at the top of the log.
-
 ### Attack via curl
 
 ```bash
@@ -243,19 +241,6 @@ curl -s -b cookies_admin.txt http://localhost:5001/bff/audit-logs | \
   jq '[.[] | select(.action=="LOG_ENTRY_DELETED")]'
 # → the LOG_ENTRY_DELETED record is there
 ```
-
----
-
-## Workshop toggle
-
-| Setting | Effect |
-|---|---|
-| `LogInjection: Vulnerable` | `\n` in username creates fake log lines in server console |
-| `LogInjection: Fixed` | Sanitized + structured logging; `\n` shown as `\n` literal |
-| `AuditLogDeletion: Vulnerable` | Any authenticated role can delete; no secondary record |
-| `AuditLogDeletion: Fixed` | AdminUser only; every deletion creates `LOG_ENTRY_DELETED` |
-
-Set in `appsettings.json` → `BookingDojo.Workshop`.
 
 ---
 

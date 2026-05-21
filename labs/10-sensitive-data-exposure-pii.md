@@ -123,11 +123,9 @@ curl -g "http://localhost:5000/api/bookings/search?q=%25'%20UNION%20SELECT%201,'
 
 ---
 
-## Step 4 – Apply the fix
+## The fix
 
-Set `CardPiiStorage` to `"Fixed"` and repeat Step 2.
-
-The API response now has `"cardNumber": null` regardless of who is fetching the booking. Even with IDOR, the attacker gets:
+The fix stores only a tokenized reference instead of the full card number. The API response has `"cardNumber": null` regardless of who is fetching the booking. Even with IDOR, the attacker gets:
 
 ```json
 {

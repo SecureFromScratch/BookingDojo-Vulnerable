@@ -41,19 +41,6 @@ public class VulnerableWebhookFactory : CustomWebApplicationFactory
     }
 }
 
-public class FixedWebhookFactory : CustomWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureServices(services =>
-        {
-            services.AddHttpClient("webhook")
-                .ConfigurePrimaryHttpMessageHandler(() => new FakeWebhookMessageHandler());
-        });
-    }
-}
-
 // ─── Vulnerable mode tests ────────────────────────────────────────────────────
 
 public class WebhooksControllerVulnerableTests : IClassFixture<VulnerableWebhookFactory>
@@ -128,89 +115,3 @@ public class WebhooksControllerVulnerableTests : IClassFixture<VulnerableWebhook
     }
 }
 
-// ─── Fixed mode tests ─────────────────────────────────────────────────────────
-
-public class WebhooksControllerFixedTests : IClassFixture<FixedWebhookFactory>
-{
-    private readonly FixedWebhookFactory _factory;
-
-    public WebhooksControllerFixedTests(FixedWebhookFactory factory)
-        => _factory = factory;
-
-    private HttpClient Client()
-    {
-        var c = _factory.CreateClient();
-        var token = TestTokenHelper.GenerateToken("AdminUser");
-        c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return c;
-    }
-
-    private StringContent Json(object body) =>
-        new(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
-
-    [Fact]
-    public async Task TestWebhook_Fixed_HttpsPublicUrl_Returns200()
-    {
-        var response = await Client().PostAsync("/api/webhooks/test",
-            Json(new { url = "https://webhook.example.com/notify" }));
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task TestWebhook_Fixed_HttpScheme_Returns400()
-    {
-        var response = await Client().PostAsync("/api/webhooks/test",
-            Json(new { url = "http://webhook.example.com/notify" }));
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var body = JsonSerializer.Deserialize<JsonElement>(await response.Content.ReadAsStringAsync());
-        Assert.Contains("HTTPS", body.GetProperty("message").GetString()!, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task TestWebhook_Fixed_Localhost_Returns400()
-    {
-        var response = await Client().PostAsync("/api/webhooks/test",
-            Json(new { url = "https://localhost/internal" }));
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task TestWebhook_Fixed_PrivateIp_10x_Returns400()
-    {
-        var response = await Client().PostAsync("/api/webhooks/test",
-            Json(new { url = "https://10.0.0.1/admin" }));
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task TestWebhook_Fixed_PrivateIp_192168_Returns400()
-    {
-        var response = await Client().PostAsync("/api/webhooks/test",
-            Json(new { url = "https://192.168.1.1/router" }));
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task TestWebhook_Fixed_LinkLocalMetadata_Returns400()
-    {
-        var response = await Client().PostAsync("/api/webhooks/test",
-            Json(new { url = "https://169.254.169.254/latest/meta-data/" }));
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task TestWebhook_Fixed_InternalHostname_Returns400()
-    {
-        var response = await Client().PostAsync("/api/webhooks/test",
-            Json(new { url = "https://db.internal/status" }));
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task TestWebhook_Fixed_InvalidUrl_Returns400()
-    {
-        var response = await Client().PostAsync("/api/webhooks/test",
-            Json(new { url = "not-a-url" }));
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-}

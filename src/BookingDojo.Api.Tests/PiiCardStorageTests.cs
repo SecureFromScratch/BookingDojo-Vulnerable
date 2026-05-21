@@ -12,8 +12,6 @@ namespace BookingDojo.Api.Tests;
 
 public class PiiVulnerableFactory : CustomWebApplicationFactory { }
 
-public class PiiFixedFactory : CustomWebApplicationFactory { }
-
 // ─── Shared seed ─────────────────────────────────────────────────────────────
 
 file static class PiiSeed
@@ -130,42 +128,3 @@ public class PiiVulnerableTests : PiiTestBase, IClassFixture<PiiVulnerableFactor
     }
 }
 
-// ─── Fixed mode ───────────────────────────────────────────────────────────────
-
-public class PiiFixedTests : PiiTestBase, IClassFixture<PiiFixedFactory>
-{
-    public PiiFixedTests(PiiFixedFactory factory) : base(factory) { }
-
-    [Fact]
-    public async Task CreateBooking_Fixed_ResponseContainsTokenNotFullNumber()
-    {
-        var client = Client();
-        var r = await CreateBooking(client, "5500005555554242");
-        Assert.Equal(HttpStatusCode.Created, r.StatusCode);
-
-        var body = await Body(r);
-        Assert.Equal("4242", body.GetProperty("cardLastFour").GetString());
-        Assert.Equal(JsonValueKind.Null, body.GetProperty("cardNumber").ValueKind);
-
-        var token = body.GetProperty("cardToken").GetString();
-        Assert.NotNull(token);
-        Assert.StartsWith("tok_", token);
-    }
-
-    [Fact]
-    public async Task GetBookingById_Fixed_IgorOnlyExposesLastFourAndToken()
-    {
-        var userA = Client(Guid.NewGuid(), username: "userA");
-        var created = await Body(await CreateBooking(userA, "4111111111111111"));
-        var bookingId = created.GetProperty("id").GetInt32();
-
-        var userB = Client(Guid.NewGuid(), username: "userB");
-        var r = await userB.GetAsync($"/api/bookings/{bookingId}");
-
-        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
-        var body = await Body(r);
-        Assert.Equal(JsonValueKind.Null, body.GetProperty("cardNumber").ValueKind);
-        Assert.Equal("1111", body.GetProperty("cardLastFour").GetString());
-        Assert.StartsWith("tok_", body.GetProperty("cardToken").GetString());
-    }
-}

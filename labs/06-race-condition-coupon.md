@@ -3,8 +3,6 @@
 **Difficulty:** Intermediate  
 **Category:** Race Conditions / TOCTOU  
 **OWASP Top 10:** API4:2023 — Unrestricted Resource Consumption / A04:2021 — Insecure Design  
-**Config flag:** `BookingDojo:Workshop:CouponRedemptionRaceCondition`
-
 ---
 
 ## Scenario
@@ -201,36 +199,7 @@ POST /bff/coupons/redeem (×2 concurrent, SAVE10 MaxUses=1)
                 └─ Req 2 loses: 0 rows affected → 409 Conflict
 ```
 
-## Step 6 — Apply the fix
-
-In `appsettings.json`:
-
-```json
-"CouponRedemptionRaceCondition": "Fixed"
-```
-
-Reset the database, restart the API, and repeat the parallel attack:
-
-```bash
-bash scripts/reset-db.sh
-dotnet run --project src/BookingDojo.Api &
-
-curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"partner","password":"Partner1234!"}' | jq .
-
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
-  -H "Content-Type: application/json" \
-  -d '{"code":"SAVE10"}' | jq . &
-
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
-  -H "Content-Type: application/json" \
-  -d '{"code":"SAVE10"}' | jq . &
-
-wait
-```
-
-Expected: exactly one `200 OK` and one `409 Conflict`. The cart will show `appliedCouponCount: 1` and the discount is a single 10% — `$120 × 0.90 = $108.00`.
+## The fix
 
 The fixed code:
 

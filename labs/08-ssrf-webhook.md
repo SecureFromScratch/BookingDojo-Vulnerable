@@ -3,8 +3,6 @@
 **Difficulty:** Intermediate  
 **Category:** Server-Side Request Forgery  
 **OWASP Top 10:** A10:2021 — Server-Side Request Forgery  
-**Config flag:** `BookingDojo:Workshop:WebhookSsrf`
-
 ---
 
 ## Scenario
@@ -144,55 +142,14 @@ https://10.96.0.1/api/v1/namespaces   # Kubernetes API server
 
 ---
 
-## Step 5 — Apply the fix
+## The fix
 
-In `appsettings.json`:
-
-```json
-"WebhookSsrf": "Fixed"
-```
-
-Restart the API and repeat the attack:
-
-```bash
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/webhooks/test \
-  -H "Content-Type: application/json" \
-  -d '{"url":"http://localhost:8888/api/internal/secret"}' | jq .
-```
-
-Expected: `400 Bad Request`
-
-```json
-{ "message": "URL not allowed: only HTTPS is permitted" }
-```
-
-Try other blocked targets:
-
-```bash
-# Loopback rejected
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/webhooks/test \
-  -H "Content-Type: application/json" \
-  -d '{"url":"http://127.0.0.1:5000/api/internal/secret"}' | jq .
-
-# Link-local (metadata) rejected
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/webhooks/test \
-  -H "Content-Type: application/json" \
-  -d '{"url":"http://169.254.169.254/latest/meta-data/"}' | jq .
-
-# Private IP rejected
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/webhooks/test \
-  -H "Content-Type: application/json" \
-  -d '{"url":"http://10.0.1.5:8080/admin"}' | jq .
-```
-
-All return `400 Bad Request`. The fixed validation rejects:
-- Non-HTTPS schemes (`http://`)
-- Loopback addresses (`localhost`, `127.0.0.1`, `::1`)
-- Private IP ranges (RFC 1918: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)
-- Link-local addresses (`169.254.0.0/16`)
-- Internal hostnames (`.internal`, `.local`)
-
-A valid HTTPS public URL still works.
+The fix validates the URL before making any outbound request:
+- Reject non-HTTPS schemes (`http://`)
+- Reject loopback addresses (`localhost`, `127.0.0.1`, `::1`)
+- Reject private IP ranges (RFC 1918: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)
+- Reject link-local addresses (`169.254.0.0/16`)
+- Reject internal hostnames (`.internal`, `.local`)
 
 ---
 

@@ -3,8 +3,6 @@
 **Difficulty:** Beginner  
 **Category:** Injection  
 **OWASP Top 10:** A03:2021 — Injection  
-**Config flag:** `BookingDojo:Workshop:BookingSearchSqlInjection`
-
 ---
 
 ## Scenario
@@ -262,17 +260,7 @@ SearchBookings(q = "%' OR '1'='1' --")
                     payload matches no hotel name → no extra results
 ```
 
-## Step 7 — Apply the fix
-
-In `appsettings.json`, change the flag:
-
-```json
-"BookingSearchSqlInjection": "Fixed"
-```
-
-Restart the API and re-run the injection curl command.
-
-**Expected result:** only `partner`'s own booking, even with the payload.
+## The fix
 
 The fixed code path:
 

@@ -11,8 +11,6 @@ namespace BookingDojo.Api.Tests;
 
 public class MfaVulnerableFactory : CustomWebApplicationFactory { }
 
-public class MfaFixedFactory : CustomWebApplicationFactory { }
-
 // ─── Base ─────────────────────────────────────────────────────────────────────
 
 public abstract class MfaTestBase
@@ -169,71 +167,3 @@ public class MfaVulnerableTests : MfaTestBase, IClassFixture<MfaVulnerableFactor
     }
 }
 
-// ─── Fixed mode ───────────────────────────────────────────────────────────────
-
-public class MfaFixedTests : MfaTestBase, IClassFixture<MfaFixedFactory>
-{
-    public MfaFixedTests(MfaFixedFactory factory) : base(factory) { }
-
-    [Fact]
-    public async Task Fixed_LockedOutAfterFiveFailures_Returns429()
-    {
-        var client = Client(Guid.NewGuid());
-        var code = await RequestAndGetCode(client);
-        var wrong = code == "0000" ? "1111" : "0000";
-
-        HttpResponseMessage last = null!;
-        for (var i = 0; i < 5; i++)
-            last = await client.PostAsync("/api/auth/mfa/verify", Json(new { code = wrong }));
-
-        Assert.Equal(HttpStatusCode.TooManyRequests, last.StatusCode);
-    }
-
-    [Fact]
-    public async Task Fixed_AfterLockout_ChallengeIsInvalidated_VerifyReturns404()
-    {
-        var client = Client(Guid.NewGuid());
-        var code = await RequestAndGetCode(client);
-        var wrong = code == "0000" ? "1111" : "0000";
-
-        for (var i = 0; i < 5; i++)
-            await client.PostAsync("/api/auth/mfa/verify", Json(new { code = wrong }));
-
-        // Challenge is gone — verify should 404
-        var r = await client.PostAsync("/api/auth/mfa/verify", Json(new { code }));
-        Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
-    }
-
-    [Fact]
-    public async Task Fixed_AttemptsRemainingDecrementsOnEachFailure()
-    {
-        var client = Client(Guid.NewGuid());
-        var code = await RequestAndGetCode(client);
-        var wrong = code == "0000" ? "1111" : "0000";
-
-        await client.PostAsync("/api/auth/mfa/verify", Json(new { code = wrong }));
-
-        var otp = await client.GetAsync("/api/auth/mfa/otp");
-        var body = await Body(otp);
-        Assert.Equal(4, body.GetProperty("attemptsRemaining").GetInt32()); // 5 - 1
-    }
-
-    [Fact]
-    public async Task Fixed_CanRequestNewChallengeAfterLockout()
-    {
-        var client = Client(Guid.NewGuid());
-        var code = await RequestAndGetCode(client);
-        var wrong = code == "0000" ? "1111" : "0000";
-
-        for (var i = 0; i < 5; i++)
-            await client.PostAsync("/api/auth/mfa/verify", Json(new { code = wrong }));
-
-        // Should be able to start fresh
-        var newChallenge = await client.PostAsync("/api/auth/mfa/challenge", null);
-        Assert.Equal(HttpStatusCode.OK, newChallenge.StatusCode);
-
-        var newCode = await RequestAndGetCode(client);
-        var verify = await client.PostAsync("/api/auth/mfa/verify", Json(new { code = newCode }));
-        Assert.Equal(HttpStatusCode.OK, verify.StatusCode);
-    }
-}

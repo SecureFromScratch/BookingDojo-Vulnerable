@@ -3,8 +3,6 @@
 **Difficulty:** Beginner  
 **Category:** Information Disclosure / Security Misconfiguration  
 **OWASP Top 10:** A05:2021 — Security Misconfiguration  
-**Config flag:** `BookingDojo:Workshop:ExceptionDetailDisclosure`
-
 ---
 
 ## Scenario
@@ -64,8 +62,6 @@ Log in as `admin / Admin1234!` (or `support / Support1234!`) and navigate to **A
 
 At the top of the page there is an **Exception Disclosure Test** panel with a **Trigger Server Error** button. Click it. The raw JSON response is rendered directly in the browser — you can read the database password, internal hostname, file path, and stack trace without any tools.
 
-Switch `ExceptionDetailDisclosure` to `"Fixed"`, restart the API, and click the button again. The panel now shows only `{ "message": "An internal error occurred." }` — nothing exploitable.
-
 ---
 
 ## Step 3 — What happens in real code
@@ -84,29 +80,7 @@ A stack trace alone can reveal:
 
 ---
 
-## Step 4 — Apply the fix
-
-In `appsettings.json`:
-
-```json
-"ExceptionDetailDisclosure": "Fixed"
-```
-
-Restart the API and trigger the same error:
-
-```bash
-curl -s -b cookies.txt http://localhost:5001/bff/debug/throw | jq .
-```
-
-Expected:
-
-```json
-{
-  "message": "An internal error occurred."
-}
-```
-
-HTTP status is still `500` — the error is acknowledged, but nothing internal is revealed.
+## The fix
 
 The fixed exception handler:
 

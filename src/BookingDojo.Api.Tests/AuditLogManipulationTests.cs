@@ -12,8 +12,6 @@ namespace BookingDojo.Api.Tests;
 
 public class AuditVulnerableFactory : CustomWebApplicationFactory { }
 
-public class AuditFixedFactory : CustomWebApplicationFactory { }
-
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
 public abstract class AuditManipulationBase
@@ -112,31 +110,6 @@ public class LogInjectionVulnerableTests : AuditManipulationBase, IClassFixture<
     }
 }
 
-// ─── Log injection tests (fixed) ─────────────────────────────────────────────
-
-public class LogInjectionFixedTests : AuditManipulationBase, IClassFixture<AuditFixedFactory>
-{
-    public LogInjectionFixedTests(AuditFixedFactory factory) : base(factory) { }
-
-    [Fact]
-    public async Task Login_WithNewlineInUsername_Fixed_Returns401AndCreatesEntry()
-    {
-        // Fixed mode sanitizes \n before writing to ILogger; login still returns 401
-        // and the DB audit entry is still created (sanitization is only in the log output).
-        var r = await AnonClient().PostAsync("/api/auth/login", Json(new
-        {
-            username = "bob\n[CRITICAL] forged",
-            password = "wrong"
-        }));
-
-        Assert.Equal(HttpStatusCode.Unauthorized, r.StatusCode);
-
-        var logs = (await Body(await Client("AdminUser").GetAsync("/api/audit-logs")))
-            .EnumerateArray().ToList();
-        Assert.Contains(logs, l => l.GetProperty("action").GetString() == "LOGIN_FAILED");
-    }
-}
-
 // ─── Audit log deletion (vulnerable) ─────────────────────────────────────────
 
 public class AuditDeletionVulnerableTests : AuditManipulationBase, IClassFixture<AuditVulnerableFactory>
@@ -180,48 +153,3 @@ public class AuditDeletionVulnerableTests : AuditManipulationBase, IClassFixture
     }
 }
 
-// ─── Audit log deletion (fixed) ──────────────────────────────────────────────
-
-public class AuditDeletionFixedTests : AuditManipulationBase, IClassFixture<AuditFixedFactory>
-{
-    public AuditDeletionFixedTests(AuditFixedFactory factory) : base(factory) { }
-
-    [Fact]
-    public async Task Fixed_AdminUser_CanDeleteEntry()
-    {
-        var id = await SeedLogEntry("FIXED_ADMIN_DELETE");
-        var r = await Client("AdminUser").DeleteAsync($"/api/audit-logs/{id}");
-        Assert.Equal(HttpStatusCode.NoContent, r.StatusCode);
-    }
-
-    [Fact]
-    public async Task Fixed_SupportUser_CannotDelete_Returns403()
-    {
-        var id = await SeedLogEntry("FIXED_SUPPORT_BLOCKED");
-        var r = await Client("SupportUser").DeleteAsync($"/api/audit-logs/{id}");
-        Assert.Equal(HttpStatusCode.Forbidden, r.StatusCode);
-    }
-
-    [Fact]
-    public async Task Fixed_AdminDeletion_CreatesLogEntryDeletedRecord()
-    {
-        var id = await SeedLogEntry("EVIDENCE");
-        await Client("AdminUser").DeleteAsync($"/api/audit-logs/{id}");
-
-        var logs = (await Body(await Client("AdminUser").GetAsync("/api/audit-logs")))
-            .EnumerateArray().ToList();
-        Assert.Contains(logs,
-            l => l.GetProperty("action").GetString() == "LOG_ENTRY_DELETED");
-    }
-
-    [Fact]
-    public async Task Fixed_EntryIsGoneAfterAdminDeletion()
-    {
-        var id = await SeedLogEntry("GONE_AFTER_DELETE");
-        await Client("AdminUser").DeleteAsync($"/api/audit-logs/{id}");
-
-        var logs = (await Body(await Client("AdminUser").GetAsync("/api/audit-logs")))
-            .EnumerateArray().ToList();
-        Assert.DoesNotContain(logs, l => l.GetProperty("id").GetString() == id);
-    }
-}

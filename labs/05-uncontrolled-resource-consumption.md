@@ -3,8 +3,6 @@
 **Difficulty:** Beginner  
 **Category:** Uncontrolled Resource Consumption  
 **OWASP Top 10:** A05:2021 — Security Misconfiguration / API4:2023 — Unrestricted Resource Consumption  
-**Config flag:** `BookingDojo:Workshop:BookingSearchResourceConsumption`
-
 ---
 
 ## Scenario
@@ -120,33 +118,7 @@ ps aux | grep BookingDojo.Api | awk '{print $6 " KB RSS"}'
 
 ---
 
-## Step 5 — Apply the fix
-
-In `appsettings.json`:
-
-```json
-"BookingSearchResourceConsumption": "Fixed"
-```
-
-Restart the API and repeat both calls — with and without a large `pageSize`:
-
-```bash
-# No pageSize — still capped at 10
-curl -s -b cookies.txt "http://localhost:5001/bff/bookings/search?q=" \
-  | jq '{count: (.results | length), truncated}'
-
-# Caller requests 999999 rows — server ignores it, returns 10
-curl -s -b cookies.txt "http://localhost:5001/bff/bookings/search?q=&pageSize=999999" \
-  | jq '{count: (.results | length), truncated}'
-```
-
-Both return:
-
-```json
-{ "count": 10, "truncated": true }
-```
-
-The UI shows **"— capped at 10 results (server-side limit)"** next to the result count. The server ignores whatever the client sends in `pageSize` and enforces its own hard cap.
+## The fix
 
 The fixed code:
 

@@ -1,8 +1,6 @@
-using BookingDojo.Api.Authorization;
-
 namespace BookingDojo.Api.Models;
 
-public class Booking : IOwnedResource
+public class Booking
 {
     // Sequential integer — intentionally guessable for the IDOR lab.
     public int Id { get; set; }
@@ -18,10 +16,10 @@ public class Booking : IOwnedResource
 
     public string CardLastFour { get; set; } = string.Empty;
 
-    // PII lab: full card number stored in vulnerable mode, null in fixed mode.
+    // PII lab: full card number stored here.
     public string? CardNumber { get; set; }
 
-    // PII lab: opaque payment token stored in fixed mode, null in vulnerable mode.
+    // PII lab: unused in vulnerable mode (always null).
     public string? CardToken { get; set; }
 
     public string SpecialRequests { get; set; } = string.Empty;

@@ -1,7 +1,6 @@
 using System.Text;
 using Amazon.Extensions.NETCore.Setup;
 using Amazon.Runtime;
-using BookingDojo.Api.Authorization;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -73,10 +72,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddAuthorization(options =>
-    options.AddPolicy("ResourceOwner", policy =>
-        policy.Requirements.Add(new ResourceOwnerRequirement())));
-builder.Services.AddSingleton<IAuthorizationHandler, ResourceOwnerAuthorizationHandler>();
+builder.Services.AddAuthorization();
 
 // CORS — allow BFF and Vite dev server
 builder.Services.AddCors(options =>

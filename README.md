@@ -2,8 +2,6 @@
 
 A deliberately vulnerable travel booking platform for secure coding workshops.
 
-Each exercise is toggled by a configuration flag — both the vulnerable and fixed implementations live in the same codebase.
-
 ## Quick Start (GitHub Codespaces)
 
 1. Click **Code → Codespaces → Create codespace on main**
@@ -88,7 +86,7 @@ Open http://localhost:5173 in your browser.
 
 ## Running the Labs
 
-Each lab assumes the full stack is already running. Start it with the Quick Start instructions above (local or Codespaces), then set the relevant flag to `"Vulnerable"` in `src/BookingDojo.Api/appsettings.json` and restart the API.
+Each lab assumes the full stack is already running. Start it with the Quick Start instructions above (local or Codespaces).
 
 Labs that use curl need a session cookie. Log in once and reuse the cookie file throughout:
 
@@ -125,22 +123,6 @@ All subsequent curl commands use `-b cookies.txt` to send the session cookie.
 | 10 | [Sensitive Data Exposure — PII Storage](labs/10-sensitive-data-exposure-pii.md) | A02 Cryptographic Failures |
 | 11 | [MFA Brute Force](labs/11-mfa-brute-force.md) | A07 Auth Failures |
 | 12 | [Audit Log Manipulation](labs/12-audit-log-manipulation.md) | A09 Logging Failures |
-
-## Toggling an Exercise
-
-Edit `src/BookingDojo.Api/appsettings.json` under `BookingDojo:Workshop`:
-
-```json
-{
-  "BookingDojo": {
-    "Workshop": {
-      "StoredXssAuditLogs": "Vulnerable"
-    }
-  }
-}
-```
-
-Set to `"Vulnerable"` to enable the attack surface, `"Fixed"` to switch to the secure implementation. Restart the API after changing. See [docs/architecture.md](docs/architecture.md) for the full flags reference.
 
 ## Resetting the Database
 

@@ -3,8 +3,6 @@
 **Difficulty:** Intermediate  
 **Category:** Injection  
 **OWASP Top 10:** A03:2021 — Injection  
-**Config flag:** `BookingDojo:Workshop:LoginSqlInjection`
-
 ---
 
 ## Scenario
@@ -218,15 +216,7 @@ AuthService.LoginAsync()
                     immediate 401, no sleep, no data leakage
 ```
 
-## Step 6 — Apply the fix
-
-In `appsettings.json`:
-
-```json
-"LoginSqlInjection": "Fixed"
-```
-
-Restart the API. Re-run the 3-second timing probe from Step 2 — the response is now immediate regardless of whether `admin` exists.
+## The fix
 
 The fixed code:
 

@@ -3,8 +3,6 @@
 **Difficulty:** Beginner  
 **Category:** Broken Access Control / IDOR  
 **OWASP Top 10:** A01:2021 — Broken Access Control  
-**Config flag:** `BookingDojo:Workshop:BookingIdorAccess`
-
 ---
 
 ## Scenario
@@ -123,17 +121,7 @@ The server looks up the booking by ID and returns it to **any authenticated user
 
 ---
 
-## Step 4 — Apply the fix
-
-In `appsettings.json`, change the flag:
-
-```json
-"BookingIdorAccess": "Fixed"
-```
-
-Restart the API and re-run the curl command from Step 2.
-
-**Expected result:** `403 Forbidden`.
+## The fix
 
 The fixed code path in `BookingsController.cs`:
 

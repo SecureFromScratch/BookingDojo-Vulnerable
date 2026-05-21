@@ -2,8 +2,6 @@
 
 **Difficulty:** Beginner  
 **Category:** Injection / Cross-Site Scripting  
-**Configuration flag:** `BookingDojo:Workshop:StoredXssAuditLogs`
-
 ---
 
 ## Scenario
@@ -95,17 +93,11 @@ Either fix alone is sufficient to prevent the exploit — but both should be fix
 
 ---
 
-## Step 5 — Apply the Fix
+## The fix
 
 ### Fix A: Server-side encoding (recommended)
 
-Change the config flag to switch to the fixed path:
-
-```json
-"StoredXssAuditLogs": "Fixed"
-```
-
-The fixed server-side code in `AuditLogsController.cs`:
+The secure server-side code in `AuditLogsController.cs`:
 
 ```csharp
 // HTML-encode the Details field before returning it.

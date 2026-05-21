@@ -3,8 +3,6 @@
 **Difficulty:** Intermediate  
 **Category:** Race Conditions / TOCTOU  
 **OWASP Top 10:** A07:2021 — Identification and Authentication Failures  
-**Config flag:** `BookingDojo:Workshop:PasswordResetRaceCondition`
-
 ---
 
 ## Scenario
@@ -237,37 +235,7 @@ POST /bff/auth/reset-password (×2 concurrent, same token)
                 └─ Req 2 loses: 0 rows affected → 409 Conflict, password unchanged
 ```
 
-## Step 6 — Apply the fix
-
-In `appsettings.json`:
-
-```json
-"PasswordResetRaceCondition": "Fixed"
-```
-
-Restart the API, request a fresh token, and repeat the exploit:
-
-```bash
-TOKEN=$(curl -s -X POST http://localhost:5001/bff/auth/forgot-password \
-  -H "Content-Type: application/json" \
-  -d '{"username":"partner"}' | jq -r '.resetToken')
-
-curl -s -X POST http://localhost:5001/bff/auth/reset-password \
-  -H "Content-Type: application/json" \
-  -d "$(printf '{"token":"%s","newPassword":"Attacker1234!"}' "$TOKEN")" | jq . &
-
-curl -s -X POST http://localhost:5001/bff/auth/reset-password \
-  -H "Content-Type: application/json" \
-  -d "$(printf '{"token":"%s","newPassword":"Victim5678!"}' "$TOKEN")" | jq . &
-
-wait
-```
-
-Expected: exactly one `200 OK` and one `409 Conflict`:
-
-```json
-{ "message": "Invalid, expired, or already-used reset token" }
-```
+## The fix
 
 The fixed code:
 

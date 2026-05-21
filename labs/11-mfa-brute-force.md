@@ -128,9 +128,7 @@ Each wrong guess decrements it; reaching 0 invalidates the challenge.
 
 ---
 
-## Step 4 – Brute-force attack (Vulnerable mode)
-
-Set `MfaBruteForceProtection` to `"Vulnerable"` in `appsettings.json` and restart the API.
+## Step 4 – Brute-force attack
 
 The script in `labs/hacking_scripts/brute_force_otp_and_checkout.sh`:
 1. Adds a hotel to the cart (simulating the victim's in-progress booking)
@@ -165,30 +163,15 @@ On average 5,000 requests are needed; at 200 req/s that is ~25 seconds.
 
 ---
 
-## Step 5 – Observe the Fixed mode
+## What the fix looks like
 
-Set `MfaBruteForceProtection` to `"Fixed"` and restart the API.
+A secure implementation enforces a lockout after N failed attempts (typically 5), returning HTTP `429` and invalidating the challenge:
 
-```bash
-# Request a new challenge first
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/auth/mfa/challenge > /dev/null
-
-# Send 5 wrong codes
-for code in 0000 0001 0002 0003 0004; do
-  curl -s -b cookies.txt -X POST http://localhost:5001/bff/auth/mfa/verify \
-    -H "Content-Type: application/json" \
-    -d "{\"code\":\"$code\"}" | jq .
-done
-```
-
-After 5 failures you receive:
 ```json
 { "message": "Too many failed attempts. Challenge invalidated — request a new one." }
 ```
 
-HTTP status `429`. The challenge is deleted from the database. The attacker must call
-`POST /bff/auth/mfa/challenge` again — in a real system that triggers a new SMS/email to
-the legitimate user, who would notice the repeated messages.
+The challenge is deleted from the database. The attacker must call `POST /bff/auth/mfa/challenge` again — in a real system that triggers a new SMS/email to the legitimate user, who would notice the repeated messages.
 
 ---
 

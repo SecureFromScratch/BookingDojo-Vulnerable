@@ -1,6 +1,6 @@
 # BookingDojo — Architecture
 
-BookingDojo is a deliberately vulnerable travel booking platform. Every vulnerability has both a vulnerable and a fixed implementation, toggled by a flag in `appsettings.json`. The same binary runs both paths.
+BookingDojo is a deliberately vulnerable travel booking platform. Every lab targets a real vulnerability in the running application.
 
 ---
 
@@ -80,24 +80,3 @@ bash scripts/reset-db.sh
 | partner | Partner1234! | PartnerUser |
 | support | Support1234! | SupportUser |
 
----
-
-## Workshop Flags
-
-Each exercise is controlled by a flag in `src/BookingDojo.Api/appsettings.json` under `BookingDojo:Workshop`. Set to `"Vulnerable"` to enable the attack surface, `"Fixed"` to switch to the secure implementation. Restart the API after changing.
-
-| Flag | Lab | What it controls |
-|------|-----|-----------------|
-| `StoredXssAuditLogs` | 01 | Audit log details returned raw (unsanitized) vs. HTML-encoded |
-| `BookingIdorAccess` | 02 | Booking endpoint enforces ownership check vs. returns any booking |
-| `BookingSearchSqlInjection` | 03 | Booking search uses raw SQL concatenation vs. EF Core parameterized |
-| `LoginSqlInjection` | 04 | Login uses raw SQL concatenation vs. EF Core parameterized |
-| `BookingSearchResourceConsumption` | 05 | Search returns unbounded results vs. hard-capped at 50 |
-| `CouponRedemptionRaceCondition` | 06 | Coupon redeem has TOCTOU window vs. atomic UPDATE |
-| `PasswordResetRaceCondition` | 07 | Password reset has TOCTOU window vs. atomic UPDATE |
-| `WebhookSsrf` | 08 | Webhook test pings any URL vs. validates against allowlist |
-| `ExceptionDetailDisclosure` | 09 | Unhandled exceptions return stack trace vs. generic message |
-| `CardPiiStorage` | 10 | Full card number stored and returned vs. tokenized to last 4 digits |
-| `MfaBruteForceProtection` | 11 | MFA verify has no attempt limit vs. locked after 5 failures |
-| `LogInjection` / `AuditLogDeletion` | 12 | Log injection + unrestricted audit log deletion vs. fixed |
-| `ProfileAvatarSsrf` | 13 | Avatar URL fetch proxies any URL vs. validates before fetching |

@@ -191,27 +191,3 @@ public class CartCheckoutVulnerableTests : CartTestBase, IClassFixture<Vulnerabl
     }
 }
 
-// ─── Fixed coupon (atomic UPDATE) ────────────────────────────────────────────
-
-public class CartCheckoutFixedTests : CartTestBase, IClassFixture<FixedCouponCartFactory>
-{
-    public CartCheckoutFixedTests(FixedCouponCartFactory factory) : base(factory) { }
-
-    [Fact]
-    public async Task Checkout_Fixed_FirstRequestSucceeds_SecondReturns409()
-    {
-        // Sequential: first user redeems the MaxUses=1 coupon, second user is rejected.
-        // (Concurrent atomicity is enforced by the SQL UPDATE — verifiable with a real DB,
-        //  not InMemory which lacks SQL-level locking.)
-        var clientA = Client(Guid.NewGuid());
-        var clientB = Client(Guid.NewGuid());
-        await AddItem(clientA);
-        await AddItem(clientB);
-
-        var r1 = await clientA.PostAsync("/api/cart/checkout", Json(new { couponCode = "ONCE10" }));
-        Assert.Equal(HttpStatusCode.OK, r1.StatusCode);
-
-        var r2 = await clientB.PostAsync("/api/cart/checkout", Json(new { couponCode = "ONCE10" }));
-        Assert.Equal(HttpStatusCode.Conflict, r2.StatusCode);
-    }
-}

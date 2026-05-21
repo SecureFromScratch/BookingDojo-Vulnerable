@@ -1,7 +1,6 @@
 using System.Data;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using BookingDojo.Api.Authorization;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -168,8 +167,6 @@ public class BookingsController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
-    [Authorize(Policy = "ResourceOwner")]
-    [OwnedResource(typeof(Booking))]
     public async Task<IActionResult> GetBookingById(int id)
     {
         var booking = await _db.Bookings
