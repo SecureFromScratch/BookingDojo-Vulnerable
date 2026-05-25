@@ -88,6 +88,14 @@ Open http://localhost:5173 in your browser.
 
 ## Running the Labs
 
+Each lab file describes the vulnerability and ends after the Background section. Your job is to:
+1. **Exploit** — follow the steps to observe the vulnerability in the running app
+2. **Fix** — apply the code change described and verify the attack no longer works
+
+If you get stuck or want to check your solution, the full step-by-step walkthrough (including the fix and verification steps) is in [`labs/full_walkthrough/`](labs/full_walkthrough/).
+
+> **Spoiler warning:** the full walkthrough reveals the exact fix. Try to work through the lab on your own first.
+
 Each lab assumes the full stack is already running. Start it with the Quick Start instructions above (local or Codespaces).
 
 Labs that use curl need a session cookie. Log in once and reuse the cookie file throughout:
