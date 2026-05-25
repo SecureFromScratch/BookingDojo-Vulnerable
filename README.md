@@ -1,5 +1,6 @@
-<img width="1312" height="411" alt="bookingdojo" src="https://github.com/user-attachments/assets/93d0dfba-cc05-4db0-9c28-ddc8ef51a5ac" />
 # BookingDojo
+
+<img width="1312" height="411" alt="bookingdojo" src="https://github.com/user-attachments/assets/93d0dfba-cc05-4db0-9c28-ddc8ef51a5ac" />
 
 A deliberately vulnerable travel booking platform for secure coding workshops.
 
