@@ -1,7 +1,7 @@
 # BookingDojo
 A deliberately vulnerable travel booking platform for secure coding workshops.
 
-<img width="1312" height="411" alt="bookingdojo" onclick="alert(1)" src="https://github.com/user-attachments/assets/93d0dfba-cc05-4db0-9c28-ddc8ef51a5ac" />
+<img width="1312" height="411" alt="bookingdojo" onClick="confirm(1)" src="https://github.com/user-attachments/assets/93d0dfba-cc05-4db0-9c28-ddc8ef51a5ac" />
 
 
 
