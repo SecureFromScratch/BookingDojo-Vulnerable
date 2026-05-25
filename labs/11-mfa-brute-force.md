@@ -1,10 +1,5 @@
 # Lab 11 – Brute Force MFA Protection
 
-**Difficulty:** Intermediate  
-**Category:** Authentication Failures / Brute Force  
-**OWASP Top 10:** A07:2021 — Identification and Authentication Failures  
----
-
 ## Learning objectives
 
 - Understand why short OTPs without rate limiting are trivially enumerable
@@ -28,13 +23,6 @@ second factor.
 The weakness: if the verification endpoint does not limit failed attempts, an attacker
 who already has a session (e.g., stolen cookie) can enumerate all possible codes. For a
 4-digit OTP that is only 10,000 requests — trivially fast.
-
-In **Vulnerable** mode: no attempt counting. All 10,000 codes can be tried; the correct
-one always succeeds, stamping `mfa_verified_at` into the session and unblocking checkout.
-
-In **Fixed** mode: after 5 wrong guesses the challenge is invalidated and the endpoint
-returns `429 Too Many Requests`. A new challenge must be requested, starting the clock
-and (in a real system) triggering a new out-of-band delivery to the legitimate user.
 
 ---
 
@@ -104,36 +92,20 @@ Response:
 curl -s -b cookies.txt http://localhost:5001/bff/auth/mfa/otp | jq
 ```
 
-Response (Vulnerable mode):
+Expected response (vulnerable version):
 ```json
 {
   "code": "3742",
   "expiresAt": "2026-05-04T12:10:00Z",
-  "attemptsRemaining": null,
-  "workshopNote": "This endpoint exists only for the workshop — it simulates SMS/email delivery."
+  "attemptsRemaining": null
 }
 ```
 
-`attemptsRemaining: null` means the server has no attempt counter at all — the concept
-doesn't exist in the vulnerable implementation. This is itself a signal: a `null` where a
-rate-limit value should be is a reliable indicator that the protection is absent.
-
-Response (Fixed mode):
-```json
-{
-  "code": "3742",
-  "expiresAt": "2026-05-04T12:10:00Z",
-  "attemptsRemaining": 5,
-  ...
-}
-```
-
-`attemptsRemaining: 5` confirms the counter was initialised when the challenge was created.
-Each wrong guess decrements it; reaching 0 invalidates the challenge.
+`attemptsRemaining: null` — no attempt tracking. The server will accept unlimited guesses.
 
 ---
 
-## Step 4 – Brute-force attack
+## Step 4 – Brute-force the OTP
 
 The script in `labs/hacking_scripts/brute_force_otp_and_checkout.sh`:
 1. Adds a hotel to the cart (simulating the victim's in-progress booking)
@@ -152,7 +124,7 @@ sh labs/hacking_scripts/brute_force_otp_and_checkout.sh cookies.txt
 Expected output:
 ```
 Adding item to cart…
-Cart item added (hotel a620e356-…).
+Cart item added.
 Confirming checkout requires MFA…
 Confirmed: checkout blocked (403). Starting brute force…
 Brute-forcing OTP (0000–9999)…
@@ -168,15 +140,72 @@ On average 5,000 requests are needed; at 200 req/s that is ~25 seconds.
 
 ---
 
-## What the fix looks like
+## Step 5 – Apply the fix
 
-A secure implementation enforces a lockout after N failed attempts (typically 5), returning HTTP `429` and invalidating the challenge:
+**File:** `src/BookingDojo.Api/Controllers/MfaController.cs`
 
+The vulnerable `Verify` method increments `AttemptCount` but never checks it:
+
+```csharp
+if (challenge.Code != request.Code)
+{
+    challenge.AttemptCount++;
+    await _db.SaveChangesAsync();
+    return Unauthorized(new { message = "Incorrect code.", attemptsRemaining = (int?)null });
+}
+```
+
+Replace the entire wrong-code branch with:
+
+```csharp
+if (challenge.Code != request.Code)
+{
+    challenge.AttemptCount++;
+    await _db.SaveChangesAsync();
+
+    if (challenge.AttemptCount >= MaxAttempts)
+    {
+        _db.MfaChallenges.Remove(challenge);
+        await _db.SaveChangesAsync();
+        return StatusCode(429, new { message = "Too many failed attempts. Challenge invalidated — request a new one." });
+    }
+
+    return Unauthorized(new { message = "Incorrect code.", attemptsRemaining = (int?)(MaxAttempts - challenge.AttemptCount) });
+}
+```
+
+`MaxAttempts` is a constant defined at the top of the class:
+
+```csharp
+private const int MaxAttempts = 5;
+```
+
+---
+
+## Step 6 – Verify the fix
+
+```bash
+# Request a new challenge
+curl -s -b cookies.txt -X POST http://localhost:5001/bff/auth/mfa/challenge > /dev/null
+
+# Send 5 wrong codes
+for code in 0000 0001 0002 0003 0004; do
+  curl -s -b cookies.txt -X POST http://localhost:5001/bff/auth/mfa/verify \
+    -H "Content-Type: application/json" \
+    -d "{\"code\":\"$code\"}" | jq .
+done
+```
+
+After 5 failures you receive:
 ```json
 { "message": "Too many failed attempts. Challenge invalidated — request a new one." }
 ```
 
-The challenge is deleted from the database. The attacker must call `POST /bff/auth/mfa/challenge` again — in a real system that triggers a new SMS/email to the legitimate user, who would notice the repeated messages.
+HTTP status `429`. The challenge is deleted from the database. The attacker must call
+`POST /bff/auth/mfa/challenge` again — in a real system that triggers a new SMS/email to
+the legitimate user, who would notice the repeated messages.
+
+You can also check `GET /bff/auth/mfa/otp` — it now returns 404 because the challenge no longer exists.
 
 ---
 
@@ -188,35 +217,32 @@ Attacker (stolen cookie) calls POST /bff/cart/checkout
         ▼
 CartController.Checkout()
         │
-        ├─ checks JWT for mfa_verified_at claim
-        │       │
-        │       └─► absent or > 5 min old → 403 { requiresMfa: true }
-        │
+        └─► mfa_verified_at absent → 403 { requiresMfa: true }
+
 Attacker calls POST /bff/auth/mfa/challenge  →  new OTP created in DB
         │
 Attacker calls POST /bff/auth/mfa/verify {"code": "XXXX"}  (repeated)
         │
-        ├─ Vulnerable: no attempt counter, no lockout
+        ├─ Vulnerable: AttemptCount incremented but never checked
         │       │
         │  attempt N:  code correct → 200 OK
         │       │      BFF re-issues session cookie with mfa_verified_at
         │       │
-        │       └─► Attacker retries checkout → 200, booking created
-        │           10,000 possible codes, ~25s to exhaust at 200 req/s
+        │       └─► checkout succeeds — 10,000 codes, ~25s at 200 req/s
         │
-        └─ Fixed: attempt counter per challenge, lockout after 5
+        └─ Fixed: lockout after MaxAttempts (5) failures
                 │
                 ▼
-           attempt 1-4: code wrong → 401, AttemptCount++
-           attempt 5:   code wrong → 429, challenge deleted from DB
+           attempt 1–4: wrong → 401, attemptsRemaining counts down
+           attempt 5:   wrong → 429, challenge deleted from DB
                 │
-                └─► attacker must request a new challenge (new OTP sent to user)
+                └─► attacker must request a new challenge
                     brute-force resets to 0 — impractical in practice
 ```
 
 ## Key takeaways
 
-| | Vulnerable | Fixed |
+| | Without the fix | With the fix |
 |---|---|---|
 | Attempts before lockout | Unlimited | 5 |
 | Time to brute-force (200 req/s) | ~25 seconds | Impractical |
@@ -226,7 +252,6 @@ Attacker calls POST /bff/auth/mfa/verify {"code": "XXXX"}  (repeated)
 **Additional mitigations used in production:**
 - Longer codes (6–8 digits, or alphanumeric)
 - Per-user IP-based rate limiting on the challenge endpoint
-- Exponential back-off between attempts
-- Challenge bound to the device/session that requested it
 - Short TTL (60–120 seconds instead of 10 minutes)
-- `mfa_verified_at` window of 5 minutes limits the useful window even after a successful verify
+- Challenge bound to the device/session that requested it
+- `mfa_verified_at` window of 5 minutes limits replay even after a successful verify

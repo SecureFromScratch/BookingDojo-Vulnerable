@@ -1,7 +1,8 @@
 # Exercise 01 — Stored XSS in Audit Logs
 
 **Difficulty:** Beginner  
-**Category:** Injection / Cross-Site Scripting  
+**Category:** Injection / Cross-Site Scripting
+
 ---
 
 ## Scenario
@@ -64,9 +65,10 @@ Log in as `admin / Admin1234!` (or `support / Support1234!`) and navigate to **A
 
 **File:** `src/BookingDojo.Api/Controllers/AuditLogsController.cs`
 
+A vulnerable implementation returns the Details field as-is — the HTML payload from the database is sent directly to the browser with no encoding:
+
 ```csharp
-// Details is returned as-is — the HTML payload from the database
-// is sent directly to the browser with no encoding.
+// VULNERABLE — Details returned raw, no encoding
 return Ok(logs.Select(l => new AuditLogDto(
     l.Id, l.Timestamp, l.Username, l.Action, l.Details)));
 ```
@@ -90,13 +92,17 @@ Either fix alone is sufficient to prevent the exploit — but both should be fix
 
 ---
 
-## The fix
+## Step 5 — Apply the Fix
 
 ### Fix A: Server-side encoding (recommended)
 
-The secure server-side code in `AuditLogsController.cs`:
+In `src/BookingDojo.Api/Controllers/AuditLogsController.cs`, update `GetAuditLogs()` to HTML-encode the Details field before returning it:
+
+The fixed server-side code in `AuditLogsController.cs`:
 
 ```csharp
+using System.Text.Encodings.Web;
+
 // HTML-encode the Details field before returning it.
 // Even if the client renders it with innerHTML, the browser
 // will display the encoded text rather than execute it.
@@ -155,7 +161,7 @@ React's default rendering always uses `textContent` instead of `innerHTML`, so e
 
 ## Step 6 — Verify the Fix
 
-1. Apply Fix A (config flag) and restart the API
+1. Apply Fix A (HTML encoding in `AuditLogsController.GetAuditLogs()`) as described above
 2. Log in as `partner / Partner1234!` and create another hotel with the XSS payload
 3. Log in as `admin / Admin1234!` and navigate to **Audit Logs**
 4. **Expected result:** The payload is displayed as literal text — no alert fires

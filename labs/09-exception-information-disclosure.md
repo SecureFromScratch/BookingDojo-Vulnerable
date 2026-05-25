@@ -2,7 +2,8 @@
 
 **Difficulty:** Beginner  
 **Category:** Information Disclosure / Security Misconfiguration  
-**OWASP Top 10:** A05:2021 — Security Misconfiguration  
+**OWASP Top 10:** A05:2021 — Security Misconfiguration
+
 ---
 
 ## Scenario
@@ -62,6 +63,8 @@ Log in as `admin / Admin1234!` (or `support / Support1234!`) and navigate to **A
 
 At the top of the page there is an **Exception Disclosure Test** panel with a **Trigger Server Error** button. Click it. The raw JSON response is rendered directly in the browser — you can read the database password, internal hostname, file path, and stack trace without any tools.
 
+After applying the fix described in Step 4 below, click the button again. The panel now shows only `{ "message": "An internal error occurred." }` — nothing exploitable.
+
 ---
 
 ## Step 3 — What happens in real code
@@ -80,7 +83,41 @@ A stack trace alone can reveal:
 
 ---
 
-## The fix
+## Step 4 — Apply the fix
+
+In `src/BookingDojo.Api/Program.cs`, replace the exception handler that returns `ex.Message` and `ex.StackTrace` with a generic response. Log the full details internally and return only:
+
+```csharp
+app.Use(async (ctx, next) =>
+{
+    try { await next(ctx); }
+    catch
+    {
+        ctx.Response.StatusCode  = 500;
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            message = "An internal error occurred."
+        });
+    }
+});
+```
+
+Trigger the same error again:
+
+```bash
+curl -s -b cookies.txt http://localhost:5001/bff/debug/throw | jq .
+```
+
+Expected:
+
+```json
+{
+  "message": "An internal error occurred."
+}
+```
+
+HTTP status is still `500` — the error is acknowledged, but nothing internal is revealed.
 
 The fixed exception handler:
 
@@ -106,13 +143,13 @@ DebugController.TriggerError()
                 ▼
         Global exception middleware catches it
                 │
-                ├─ Vulnerable: returns ex.Message + ex.StackTrace in response body
+                ├─ Without the fix: returns ex.Message + ex.StackTrace in response body
                 │       │
                 │       └─► 500 { "error": "Host=db-replica...Password=...",
                 │                 "stackTrace": "at DebugController.cs:line 17..." }
                 │               attacker reads credentials, hostnames, file paths
                 │
-                └─ Fixed: logs full details internally, returns generic message
+                └─ With the fix: logs full details internally, returns generic message
                         │
                         └─► 500 { "message": "An internal error occurred." }
                             full details written to server log only
@@ -137,7 +174,7 @@ Returning generic errors does not mean ignoring them. Every exception must be lo
 
 **Development vs production**
 
-ASP.NET Core's `UseDeveloperExceptionPage()` is safe in development (you need access to the localhost) but catastrophic if left on in production. The workshop flag simulates the same effect without relying on the `ASPNETCORE_ENVIRONMENT` variable, which is easy to misconfigure.
+ASP.NET Core's `UseDeveloperExceptionPage()` is safe in development but catastrophic if left on in production. The most reliable fix is a custom catch-all middleware that returns a generic message regardless of environment — do not rely on environment variables to control exception verbosity.
 
 ---
 

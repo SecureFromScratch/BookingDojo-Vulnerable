@@ -2,7 +2,8 @@
 
 **Difficulty:** Intermediate  
 **Category:** Race Conditions / TOCTOU  
-**OWASP Top 10:** A07:2021 — Identification and Authentication Failures  
+**OWASP Top 10:** A07:2021 — Identification and Authentication Failures
+
 ---
 
 ## Scenario
@@ -101,7 +102,10 @@ curl -s -X POST http://localhost:5001/bff/auth/reset-password \
 
 ## Step 3 — Understand the vulnerable code
 
+A vulnerable implementation uses check-then-write:
+
 ```csharp
+// VULNERABLE — TOCTOU
 // Time of Check
 var token = await _db.PasswordResetTokens.Include(t => t.User)
     .FirstOrDefaultAsync(t => t.Token == request.Token
@@ -110,7 +114,7 @@ var token = await _db.PasswordResetTokens.Include(t => t.User)
 if (token == null)
     return BadRequest("Invalid or expired reset token");
 
-// Race window — 500 ms artificial delay
+// Race window — real I/O latency in production (500 ms shown for clarity)
 await Task.Delay(500);
 
 // Time of Use — another request may have already set UsedAt
@@ -212,7 +216,7 @@ curl -s -X POST http://localhost:5001/bff/auth/reset-password \
 ```
 POST /bff/auth/reset-password (×2 concurrent, same token)
         │
-        ├─ Vulnerable (TOCTOU)
+        ├─ Without the fix (TOCTOU)
         │       │
         │  Req 1: reads UsedAt=NULL → token valid → check passes
         │  Req 2: reads UsedAt=NULL → token valid → check passes   ← both pass simultaneously
@@ -225,7 +229,7 @@ POST /bff/auth/reset-password (×2 concurrent, same token)
         │       └─► both return 200 OK — last write wins the password
         │           victim's account locked out with attacker-chosen password
         │
-        └─ Fixed: atomic UPDATE in DB
+        └─ With the fix: atomic UPDATE in DB
                 │
                 ▼
            UPDATE PasswordResetTokens SET UsedAt = @now
@@ -235,21 +239,102 @@ POST /bff/auth/reset-password (×2 concurrent, same token)
                 └─ Req 2 loses: 0 rows affected → 409 Conflict, password unchanged
 ```
 
-## The fix
+## Step 6 — Apply the fix
 
-The fixed code:
+**File:** `src/BookingDojo.Api/Controllers/PasswordResetController.cs`  
+**Method:** `ResetPassword`
 
-```sql
-UPDATE bookingdojo."PasswordResetTokens"
-SET "UsedAt" = @now
-WHERE "Token" = @token AND "UsedAt" IS NULL AND "ExpiresAt" > @now
+**Remove** the vulnerable block:
+
+```csharp
+// VULNERABLE PATH (TOCTOU race condition)
+// Time of Check: read and validate the token
+var token = await _db.PasswordResetTokens
+    .Include(t => t.User)
+    .FirstOrDefaultAsync(t => t.Token == request.Token
+                           && t.UsedAt == null
+                           && t.ExpiresAt > now);
+
+if (token == null)
+    return BadRequest(new { message = "Invalid or expired reset token" });
+
+// Race window
+await Task.Delay(500);
+
+// Time of Use: mark used and update password
+token.UsedAt = DateTime.UtcNow;
+token.User.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+await _db.SaveChangesAsync();
+
+return Ok(new { message = "Password reset successfully" });
 ```
 
-Both requests race to run this statement. Only the one that executes first satisfies `UsedAt IS NULL`; the other sees 0 rows affected and returns 409. The password update only runs after the atomic claim succeeds.
+**Replace with:**
+
+```csharp
+// Atomic claim: only the first concurrent request satisfies UsedAt IS NULL.
+var markedAt = DateTime.UtcNow;
+var rows = await _db.Database.ExecuteSqlRawAsync(
+    "UPDATE bookingdojo.\"PasswordResetTokens\" " +
+    "SET \"UsedAt\" = {0} " +
+    "WHERE \"Token\" = {1} AND \"UsedAt\" IS NULL AND \"ExpiresAt\" > {2}",
+    markedAt, request.Token, now);
+
+if (rows == 0)
+    return Conflict(new { message = "Invalid, expired, or already-used reset token" });
+
+// Claim succeeded — load the user and update the password.
+var tokenRecord = await _db.PasswordResetTokens
+    .Include(t => t.User)
+    .FirstOrDefaultAsync(t => t.Token == request.Token);
+
+tokenRecord!.User.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+await _db.SaveChangesAsync();
+
+return Ok(new { message = "Password reset successfully" });
+```
+
+The `UPDATE ... WHERE UsedAt IS NULL` is a single atomic statement. Both concurrent requests race to execute it. The database only marks the token used once — whichever request gets there first sees `1 row affected`; the other sees `0 rows affected` and returns 409. The password update only runs after the atomic claim succeeds.
 
 ---
 
-## Step 6 — Discussion
+## Step 7 — Verify
+
+Request a fresh token and fire two concurrent resets with different passwords:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:5001/bff/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{"username":"partner"}' | jq -r '.resetToken')
+
+curl -s -X POST http://localhost:5001/bff/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d "$(printf '{"token":"%s","newPassword":"Attacker1234!"}' "$TOKEN")" | jq . &
+
+curl -s -X POST http://localhost:5001/bff/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d "$(printf '{"token":"%s","newPassword":"Victim5678!"}' "$TOKEN")" | jq . &
+
+wait
+```
+
+Expected: exactly **one `200 OK`** and **one `409 Conflict`** — only one write went through.
+
+Restore the password before continuing:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:5001/bff/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{"username":"partner"}' | jq -r '.resetToken')
+
+curl -s -X POST http://localhost:5001/bff/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d "$(printf '{"token":"%s","newPassword":"Partner1234!"}' "$TOKEN")" | jq .
+```
+
+---
+
+## Step 8 — Discussion
 
 | Control | Protection |
 |---------|-----------|

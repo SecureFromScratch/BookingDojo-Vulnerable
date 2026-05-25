@@ -2,7 +2,8 @@
 
 **Difficulty:** Intermediate  
 **Category:** Injection  
-**OWASP Top 10:** A03:2021 — Injection  
+**OWASP Top 10:** A03:2021 — Injection
+
 ---
 
 ## Scenario
@@ -195,7 +196,7 @@ POST /bff/auth/login {"username": "admin' AND pg_sleep(3)--", "password": "x"}
         ▼
 AuthService.LoginAsync()
         │
-        ├─ Vulnerable: username interpolated into SQL string
+        ├─ Without the fix: username interpolated into SQL string
         │       │
         │       ▼
         │  SQL sent to PostgreSQL:
@@ -207,7 +208,7 @@ AuthService.LoginAsync()
         │       └─► attacker measures elapsed time → 3s = condition true
         │           repeat with different conditions to extract data bit by bit
         │
-        └─ Fixed: EF Core LINQ → parameterised query
+        └─ With the fix: EF Core LINQ → parameterised query
                 │
                 ▼
            SQL: WHERE "Username" = $1
@@ -216,26 +217,87 @@ AuthService.LoginAsync()
                     immediate 401, no sleep, no data leakage
 ```
 
-## The fix
+---
 
-The fixed code:
+## Step 7 — Apply the fix
+
+**File:** `src/BookingDojo.Api/Services/AuthService.cs`  
+**Method:** `LoginAsync`
+
+**Remove** this entire block:
+
+```csharp
+var sql = $"""
+    SELECT "Id", "Username", "PasswordHash", "Role", "PartnerId"
+    FROM bookingdojo."Users"
+    WHERE "Username" = '{username}'
+    """;
+
+user = null;
+var conn = _db.Database.GetDbConnection();
+var needsClose = conn.State != ConnectionState.Open;
+if (needsClose) await conn.OpenAsync();
+try
+{
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = sql;
+    using var reader = await cmd.ExecuteReaderAsync();
+    if (await reader.ReadAsync())
+    {
+        user = new User
+        {
+            Id           = reader.GetGuid(reader.GetOrdinal("Id")),
+            Username     = reader.GetString(reader.GetOrdinal("Username")),
+            PasswordHash = reader.GetString(reader.GetOrdinal("PasswordHash")),
+            Role         = reader.GetString(reader.GetOrdinal("Role")),
+            PartnerId    = reader.IsDBNull(reader.GetOrdinal("PartnerId"))
+                             ? null
+                             : reader.GetGuid(reader.GetOrdinal("PartnerId")),
+        };
+    }
+}
+finally
+{
+    if (needsClose) await conn.CloseAsync();
+}
+```
+
+**Replace with:**
 
 ```csharp
 user = await _db.Users
     .FirstOrDefaultAsync(u => u.Username == username);
 ```
 
-EF Core generates:
-
-```sql
-SELECT ... FROM bookingdojo."Users" WHERE "Username" = $1
-```
-
-`$1` is bound as a typed parameter. The `pg_sleep` payload lands in `$1` as a literal string — no username matches it, no sleep, no data.
+EF Core generates `WHERE "Username" = $1`. The `pg_sleep` payload lands in `$1` as a literal string — no username matches it, the sleep never executes.
 
 ---
 
-## Step 7 — Discussion
+## Step 8 — Verify
+
+### 8.1 — Normal login still works
+
+```bash
+curl -s -X POST http://localhost:5001/bff/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"Admin1234!"}' | jq .
+```
+
+Expected: `200 OK` with token.
+
+### 8.2 — Timing probe is neutralised
+
+```bash
+time curl -s -X POST http://localhost:5001/bff/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"x' OR 1=(SELECT 1 FROM pg_sleep(CASE WHEN (SELECT COUNT(*) FROM bookingdojo.\\\"Users\\\" WHERE \\\"Username\\\"='admin')>0 THEN 3 ELSE 0 END))--\",\"password\":\"x\"}" | jq .
+```
+
+Expected: response is **immediate** (well under 1 second). Before the fix this took ~3 seconds. The payload is now a literal string passed as a parameter — PostgreSQL never interprets it as SQL.
+
+---
+
+## Step 9 — Discussion
 
 | Aspect | Detail |
 |--------|--------|

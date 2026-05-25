@@ -2,7 +2,8 @@
 
 **Difficulty:** Beginner  
 **Category:** Injection  
-**OWASP Top 10:** A03:2021 — Injection  
+**OWASP Top 10:** A03:2021 — Injection
+
 ---
 
 ## Scenario
@@ -215,25 +216,26 @@ In the results table, rows where **Hotel = PWNED** contain the full credential d
 
 ---
 
-## Step 6 — Understand why it works
+## Step 5 — Understand why it works
 
-Open `src/BookingDojo.Api/Controllers/BookingsController.cs` and find `SearchBookings`:
+`SearchBookings` in `src/BookingDojo.Api/Controllers/BookingsController.cs` builds a SQL string by concatenating `q` directly into it, then executes it through a raw ADO.NET connection:
 
 ```csharp
-var sql = $"""
-    SELECT b."Id", b."UserId", ...
-    FROM bookingdojo."Bookings" b
-    JOIN bookingdojo."Hotels" h ON b."HotelId" = h."Id"
-    WHERE b."UserId" = '{userId}' AND h."Name" ILIKE '%{q}%'
-    ORDER BY b."CreatedAt" DESC
-    """;
+// VULNERABLE — user input interpolated into SQL
+var sql = "SELECT b.\"Id\", b.\"UserId\", ..."
+        + $" WHERE b.\"UserId\" = '{userId}' AND h.\"Name\" ILIKE '%{q}%'"
+        + " ORDER BY b.\"CreatedAt\" DESC";
+
+using var cmd = conn.CreateCommand();
+cmd.CommandText = sql;
+using var reader = await cmd.ExecuteReaderAsync();
 ```
 
-`q` is a C# string interpolated directly into the SQL text. The database receives whatever the caller sends — including SQL syntax.
+`q` is a C# string interpolated directly into the SQL text. The database cannot distinguish between the developer's SQL and the attacker's payload — it executes whatever it receives.
 
 ---
 
-## Step 7 — How it works at runtime
+## Step 6 — How it works at runtime
 
 ```
 GET /api/bookings/search?q=%25' OR '1'='1' --
@@ -241,7 +243,7 @@ GET /api/bookings/search?q=%25' OR '1'='1' --
         ▼
 SearchBookings(q = "%' OR '1'='1' --")
         │
-        ├─ Vulnerable: q interpolated into SQL string
+        ├─ Without the fix: q interpolated into SQL string
         │       │
         │       ▼
         │  SQL sent to PostgreSQL:
@@ -249,7 +251,7 @@ SearchBookings(q = "%' OR '1'='1' --")
         │       │
         │       └─► OR '1'='1' is always true → all rows returned
         │
-        └─ Fixed: EF Core LINQ — q never touches SQL
+        └─ With the fix: EF Core LINQ — q never touches SQL
                 │
                 ▼
            SQL sent to PostgreSQL:
@@ -259,12 +261,52 @@ SearchBookings(q = "%' OR '1'='1' --")
                     payload matches no hotel name → no extra results
 ```
 
-## The fix
+---
 
-The fixed code path:
+## Step 7 — Apply the fix
+
+In `src/BookingDojo.Api/Controllers/BookingsController.cs`, replace everything from the `sql` variable declaration through the `finally` block — and the `List<BookingDto> results` declaration — with EF Core LINQ.
+
+**Remove** this entire block:
 
 ```csharp
-// userId goes to PostgreSQL as a typed parameter — q never touches SQL at all.
+// VULNERABLE PATH (SQL injection)
+var sql = "SELECT b.\"Id\", b.\"UserId\", b.\"Username\", b.\"HotelId\", b.\"CardLastFour\"," +
+          " b.\"CheckIn\", b.\"CheckOut\", b.\"SpecialRequests\", b.\"TotalPrice\", b.\"CreatedAt\"," +
+          " h.\"Name\" AS \"HotelName\"" +
+          " FROM bookingdojo.\"Bookings\" b" +
+          " JOIN bookingdojo.\"Hotels\" h ON b.\"HotelId\" = h.\"Id\"" +
+          $" WHERE b.\"UserId\" = '{userId}' AND h.\"Name\" ILIKE '%{q}%'" +
+          " ORDER BY b.\"CreatedAt\" DESC";
+
+List<BookingDto> results = new();
+var conn = _db.Database.GetDbConnection();
+var needsClose = conn.State != ConnectionState.Open;
+if (needsClose) await conn.OpenAsync();
+try
+{
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = sql;
+    using var reader = await cmd.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+    {
+        results.Add(new BookingDto(...));
+    }
+}
+catch (Exception ex)
+{
+    return StatusCode(500, new { message = "An error occurred...", details = ex.Message });
+}
+finally
+{
+    if (needsClose) await conn.CloseAsync();
+}
+```
+
+**Replace with:**
+
+```csharp
+// userId is a typed SQL parameter — q never reaches SQL.
 var allUserBookings = await _db.Bookings
     .Include(b => b.Hotel)
     .Where(b => b.UserId == userId)
@@ -274,19 +316,51 @@ var allUserBookings = await _db.Bookings
 var filtered = string.IsNullOrEmpty(q)
     ? allUserBookings
     : allUserBookings.Where(b => b.Hotel.Name.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+
+var results = filtered.Select(b => ToDto(b, b.Hotel.Name)).ToList();
 ```
 
-EF Core translates the database query to:
-
-```sql
-WHERE b."UserId" = $1
-```
-
-`$1` is a bound parameter — the database never sees `q`. The hotel name filter then runs as C# code on the already-fetched results. The payload `%' OR '1'='1' --` becomes a literal C# string that simply matches no hotel name.
+EF Core sends `userId` to PostgreSQL as a bound parameter (`$1`). `q` never reaches the database — the hotel name filter runs as C# string matching on the already-fetched rows.
 
 ---
 
-## Step 8 — Discussion
+## Step 8 — Verify
+
+### 8.1 — Normal search still works
+
+```bash
+# Log in as partner
+curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"partner","password":"Partner1234!"}' | jq .
+
+# Search for own booking — should return booking #2
+curl -s -b cookies.txt "http://localhost:5001/bff/bookings/search?q=Beach" | jq .
+```
+
+Expected: one result, `partner`'s booking at Beach Paradise Resort.
+
+### 8.2 — Injection payload is neutralised
+
+```bash
+curl -s -b cookies.txt \
+  "http://localhost:5001/bff/bookings/search?q=%25%27%20OR%20%271%27%3D%271%27%20--" | jq .
+```
+
+Expected: `{"results":[],"truncated":false}` — the payload is treated as a literal hotel name string, which matches nothing.
+
+### 8.3 — UNION injection no longer works
+
+```bash
+curl -s -b cookies.txt \
+  "http://localhost:5001/bff/bookings/search?q=%25%27%20OR%20%271%27%3D%271%27%20UNION%20SELECT%201%2C%270000%27%2CUsername%2C%270000%27%2CPasswordHash%2CNOW%28%29%2CNOW%28%29%2C%27x%27%2C0%2CNOW%28%29%2C%27PWNED%27%20FROM%20bookingdojo.%22Users%22%20--" | jq .
+```
+
+Expected: `{"results":[],"truncated":false}` — the entire payload is a C# string that matches no hotel name. No credential dump.
+
+---
+
+## Step 9 — Discussion
 
 | Approach | Secure? | Notes |
 |----------|---------|-------|

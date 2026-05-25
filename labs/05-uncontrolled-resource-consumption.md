@@ -2,7 +2,8 @@
 
 **Difficulty:** Beginner  
 **Category:** Uncontrolled Resource Consumption  
-**OWASP Top 10:** A05:2021 — Security Misconfiguration / API4:2023 — Unrestricted Resource Consumption  
+**OWASP Top 10:** A05:2021 — Security Misconfiguration / API4:2023 — Unrestricted Resource Consumption
+
 ---
 
 ## Scenario
@@ -82,7 +83,7 @@ With 211 bookings the response is roughly 60–100 KB. Scale this to 100 000 boo
 
 ## Step 3 — Combine with SQL injection for maximum impact
 
-With `BookingSearchSqlInjection: Vulnerable`, a single request returns **all bookings from all users** with no limit:
+When SQL injection is also present (as in Lab 03), a single request can return **all bookings from all users** with no limit:
 
 ```bash
 # SQL injection payload — bypasses the UserId filter
@@ -118,18 +119,72 @@ ps aux | grep BookingDojo.Api | awk '{print $6 " KB RSS"}'
 
 ---
 
-## The fix
+## Step 5 — Apply the fix
 
-The fixed code:
+**File:** `src/BookingDojo.Api/Controllers/BookingsController.cs`  
+**Method:** `SearchBookings`
+
+> **Why the cap must be in the query, not after it**
+>
+> The vulnerable code runs a SQL query that fetches every matching row into server memory, _then_ trims the list before sending the response. The SQL already happened — the damage (memory allocation, DB work) is done. A fix that only trims the response is still a DoS vector. The correct fix applies `LIMIT` at the database level so the SQL never fetches more than `MaxResults + 1` rows.
+
+**Remove** the entire vulnerable pagination block (the `sql` variable, the ADO.NET connection, reader, try/finally — already replaced in Lab 03), plus the client-controlled truncation at the end:
 
 ```csharp
-const int MaxResults = 10;
-if (results.Count > MaxResults)
+// VULNERABLE — honours whatever pageSize the caller sends
+var truncated = false;
+if (pageSize.HasValue && pageSize.Value > 0 && results.Count > pageSize.Value)
 {
-    results = results.Take(MaxResults).ToList();
+    results = results.Take(pageSize.Value).ToList();
     truncated = true;
 }
+
+return Ok(new { results, truncated, appliedPageSize = pageSize });
 ```
+
+**Replace the entire `SearchBookings` body** (building on the Lab 03 LINQ fix) with:
+
+```csharp
+var userId = Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
+
+const int MaxResults = 10;
+
+// userId and q are typed SQL parameters.
+// Take(MaxResults + 1) adds LIMIT to the SQL query — the database never fetches
+// more than 11 rows regardless of how many bookings the user has.
+var query = _db.Bookings
+    .Include(b => b.Hotel)
+    .Where(b => b.UserId == userId);
+
+if (!string.IsNullOrEmpty(q))
+    query = query.Where(b => b.Hotel.Name.Contains(q));
+
+var fetched = await query
+    .OrderByDescending(b => b.CreatedAt)
+    .Take(MaxResults + 1)
+    .ToListAsync();
+
+var truncated = fetched.Count > MaxResults;
+var results = fetched
+    .Take(MaxResults)
+    .Select(b => ToDto(b, b.Hotel.Name))
+    .ToList();
+
+return Ok(new { results, truncated, appliedPageSize = pageSize });
+```
+
+EF Core translates this to:
+
+```sql
+SELECT ... FROM bookingdojo."Bookings" b
+JOIN bookingdojo."Hotels" h ON b."HotelId" = h."Id"
+WHERE b."UserId" = $1
+  AND h."Name" LIKE $2      -- only when q is non-empty
+ORDER BY b."CreatedAt" DESC
+LIMIT 11
+```
+
+The database fetches at most 11 rows. Fetching one extra (`MaxResults + 1`) lets us detect truncation cheaply: if we got 11, there are more rows and `truncated = true`.
 
 ### How it works at runtime
 
@@ -139,27 +194,59 @@ GET /api/bookings/search?q=&pageSize=999999
         ▼
 SearchBookings(pageSize = 999999)
         │
-        ├─ Vulnerable: honours caller-supplied pageSize
+        ├─ Without the fix: SQL fetches all rows, response trimmed after
         │       │
-        │       ▼
-        │  DB query fetches all 211 matching rows into memory
-        │       │
-        │       └─► if pageSize=999999: all 211 rows returned
-        │           if pageSize omitted: all 211 rows returned
-        │           server memory/CPU proportional to row count
+        │       └─► 211 rows loaded into memory, then Take(999999) = all 211 returned
         │
-        └─ Fixed: server-side cap, caller-supplied pageSize ignored
+        └─ With the fix: LIMIT in SQL, pageSize ignored
                 │
                 ▼
-           DB query fetches all rows, then:
-           results.Take(10) → at most 10 returned
+           SQL: LIMIT 11 — DB fetches at most 11 rows
+           fetched.Count = 11 → truncated = true
+           results = first 10
                 │
                 └─► { results: [...10 items...], truncated: true }
+                    memory proportional to 11 rows, not 211
 ```
 
 ---
 
-## Step 6 — Discussion
+## Step 6 — Verify
+
+### 6.1 — Normal search still works
+
+```bash
+curl -s -c cookies.txt -X POST http://localhost:5001/bff/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"partner","password":"Partner1234!"}' | jq .
+
+curl -s -b cookies.txt "http://localhost:5001/bff/bookings/search?q=Beach" \
+  | jq '{count: (.results | length), truncated}'
+```
+
+Expected: `{ "count": 1, "truncated": false }` — partner's Beach Paradise booking.
+
+### 6.2 — Large pageSize is ignored
+
+```bash
+curl -s -b cookies.txt "http://localhost:5001/bff/bookings/search?q=&pageSize=999999" \
+  | jq '{count: (.results | length), truncated}'
+```
+
+Expected: `{ "count": 10, "truncated": true }` — server returns 10 regardless of what the caller requests.
+
+### 6.3 — Omitting pageSize is also capped
+
+```bash
+curl -s -b cookies.txt "http://localhost:5001/bff/bookings/search?q=" \
+  | jq '{count: (.results | length), truncated}'
+```
+
+Expected: `{ "count": 10, "truncated": true }`.
+
+---
+
+## Step 7 — Discussion
 
 | Control | Description | Applied here |
 |---------|-------------|--------------|
@@ -171,20 +258,11 @@ SearchBookings(pageSize = 999999)
 
 **Why a hard cap and not just pagination?**
 
-This lab demonstrates exactly this: in Vulnerable mode the `pageSize` parameter exists but the server honours whatever the caller sends. Setting `pageSize=999999` is indistinguishable from not having pagination at all. The fix must be a server-side hard limit that the client **cannot negotiate around** — the server decides the cap, the caller's `pageSize` is discarded.
+The `pageSize` parameter exists in the vulnerable version but the server honours whatever the caller sends. Setting `pageSize=999999` is indistinguishable from not having pagination at all. The fix must be a server-side hard limit that the client **cannot negotiate around** — the server decides the cap, the caller's `pageSize` is discarded.
 
-**Independent toggles**
+**Independent vulnerabilities**
 
-Notice that `BookingSearchSqlInjection` and `BookingSearchResourceConsumption` are separate flags. You can have:
-
-| SQLi flag | Resource flag | Effect |
-|-----------|--------------|--------|
-| Vulnerable | Vulnerable | Injection returns unlimited results for all users |
-| Fixed | Vulnerable | Safe query but still returns unlimited caller results |
-| Vulnerable | Fixed | Injection capped at 10 — less devastating but still leaks cross-user data |
-| Fixed | Fixed | Both vulnerabilities addressed |
-
-These are separate code paths with separate root causes — and separate fixes.
+SQL injection (Lab 03) and uncontrolled resource consumption are separate vulnerabilities with separate root causes and separate fixes. Fixing one does not fix the other: a parameterised query with no row limit is still a DoS vector; an unparameterised query with a hard cap still leaks cross-user data.
 
 ---
 
