@@ -97,6 +97,7 @@ public class DataSeeder
         var hotelPool = new[] { grandSunshineId, beachParadiseId, alpineLodgeId };
         for (var i = 1; i <= 210; i++)
         {
+            var lastFour = (i % 10000).ToString("D4");
             _context.Bookings.Add(new Booking
             {
                 UserId          = partnerId,
@@ -104,7 +105,8 @@ public class DataSeeder
                 HotelId         = hotelPool[(i - 1) % hotelPool.Length],
                 CheckIn         = DateTime.UtcNow.AddDays(i % 90 + 30),
                 CheckOut        = DateTime.UtcNow.AddDays(i % 90 + 33),
-                CardLastFour    = (i % 10000).ToString("D4"),
+                CardLastFour    = lastFour,
+                CardNumber      = $"411111111111{lastFour}",
                 SpecialRequests = $"Booking {i} of 210",
                 CreatedAt       = DateTime.UtcNow.AddDays(-i - 2),
             });
