@@ -21,53 +21,6 @@ public class BookingsController : ControllerBase
         _db = db;
     }
 
-    [HttpPost]
-    public async Task<IActionResult> CreateBooking([FromBody] CreateBookingRequest request)
-    {
-        var userId   = Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
-        var username = User.FindFirstValue(JwtRegisteredClaimNames.Name) ?? "unknown";
-
-        var hotel = await _db.Hotels.FindAsync(request.HotelId);
-        if (hotel == null || !hotel.IsActive)
-            return BadRequest(new { message = "Hotel not found or inactive" });
-
-        if (request.CardNumber.Length < 13 || request.CardNumber.Length > 19 || !request.CardNumber.All(char.IsDigit))
-            return BadRequest(new { message = "cardNumber must be 13–19 digits" });
-
-        var (lastFour, storedCardNumber, cardToken) = Tokenize(request.CardNumber);
-
-        var nights = (int)(request.CheckOut - request.CheckIn).TotalDays;
-        var totalPrice = Math.Round(hotel.PricePerNight * nights, 2);
-
-        var booking = new Booking
-        {
-            UserId          = userId,
-            Username        = username,
-            HotelId         = request.HotelId,
-            CheckIn         = DateTime.SpecifyKind(request.CheckIn, DateTimeKind.Utc),
-            CheckOut        = DateTime.SpecifyKind(request.CheckOut, DateTimeKind.Utc),
-            CardLastFour    = lastFour,
-            CardNumber      = storedCardNumber,
-            CardToken       = cardToken,
-            SpecialRequests = request.SpecialRequests,
-            TotalPrice      = totalPrice,
-            CreatedAt       = DateTime.UtcNow
-        };
-
-        _db.Bookings.Add(booking);
-        await _db.SaveChangesAsync();
-
-        return CreatedAtAction(nameof(GetBookingById), new { id = booking.Id },
-            ToDto(booking, hotel.Name));
-    }
-
-    // VULNERABLE PATH: always returns full card number (no tokenization)
-    private static (string lastFour, string? cardNumber, string? cardToken) Tokenize(string fullCardNumber)
-    {
-        var lastFour = fullCardNumber[^4..];
-        return (lastFour, fullCardNumber, null);
-    }
-
     [HttpGet]
     public async Task<IActionResult> GetMyBookings([FromQuery] int page = 1)
     {
