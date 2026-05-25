@@ -12,11 +12,11 @@ if [[ "$confirm" != "yes" ]]; then
 fi
 
 echo "Dropping database..."
-docker-compose -f "$ROOT_DIR/docker-compose.yml" exec -T postgres \
+docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T postgres \
   psql -U bookingdojo -c "DROP DATABASE IF EXISTS bookingdojo;" postgres
 
 echo "Creating database..."
-docker-compose -f "$ROOT_DIR/docker-compose.yml" exec -T postgres \
+docker compose -f "$ROOT_DIR/docker-compose.yml" exec -T postgres \
   psql -U bookingdojo -c "CREATE DATABASE bookingdojo;" postgres
 
 echo "Re-seeding..."
