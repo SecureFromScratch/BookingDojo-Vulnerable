@@ -53,7 +53,7 @@ If any check fails the script prints the exact command to fix it.
 
 > **When you're done, delete the Codespace to avoid consuming your GitHub credits.** Click the **three-dot menu (...)** next to your Codespace at github.com/codespaces and choose **Delete**.
 
-> **If you get error 500 before you made any change, run the setup script**
+> **If you get error 500 before you start coding, run the setup script**
 
 ``` bash
 scripts/setup.sh
