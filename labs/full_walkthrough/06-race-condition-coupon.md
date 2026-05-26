@@ -89,6 +89,57 @@ Promise.all([
 .then(rs => Promise.all(rs.map(r => r.json())))
 .then(results => { console.log(results); location.reload(); });
 ```
+For Github Codespaces it will look like
+```javascript
+Promise.all([
+  fetch("https://probable-spork-g9qg9gpjrqj29vg4-5173.app.github.dev/bff/coupons/redeem", {
+  "headers": {
+    "accept": "*/*",
+    "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",
+    "cache-control": "no-cache",
+    "content-type": "application/json",
+    "pragma": "no-cache",
+    "priority": "u=1, i",
+    "sec-ch-ua": "\"Google Chrome\";v=\"147\", \"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"147\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"Linux\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin"
+  },
+  "referrer": "https://probable-spork-g9qg9gpjrqj29vg4-5173.app.github.dev/cart",
+  "body": "{\"code\":\"SAVE10\"}",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+}),
+fetch("https://probable-spork-g9qg9gpjrqj29vg4-5173.app.github.dev/bff/coupons/redeem", {
+  "headers": {
+    "accept": "*/*",
+    "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",
+    "cache-control": "no-cache",
+    "content-type": "application/json",
+    "pragma": "no-cache",
+    "priority": "u=1, i",
+    "sec-ch-ua": "\"Google Chrome\";v=\"147\", \"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"147\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"Linux\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin"
+  },
+  "referrer": "https://probable-spork-g9qg9gpjrqj29vg4-5173.app.github.dev/cart",
+  "body": "{\"code\":\"SAVE10\"}",
+  "method": "POST",
+  "mode": "cors",
+  "credentials": "include"
+})
+])
+.then(rs => Promise.all(rs.map(r => r.json())))
+.then(results => { console.log(results); location.reload(); });
+
+```
+
 
 Both requests fire in the same JavaScript tick — they land at the server while the 500 ms delay is still running. After the page reloads, the cart shows:
 
