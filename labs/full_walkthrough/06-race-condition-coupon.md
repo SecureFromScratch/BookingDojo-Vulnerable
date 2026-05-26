@@ -89,7 +89,7 @@ Promise.all([
 .then(rs => Promise.all(rs.map(r => r.json())))
 .then(results => { console.log(results); location.reload(); });
 ```
-For Github Codespaces it will look like
+For Github Codespaces users it will look like
 ```javascript
 Promise.all([
   fetch("https://probable-spork-g9qg9gpjrqj29vg4-5173.app.github.dev/bff/coupons/redeem", {
