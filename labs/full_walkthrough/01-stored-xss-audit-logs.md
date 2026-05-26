@@ -98,7 +98,19 @@ Either fix alone is sufficient to prevent the exploit — but both should be fix
 
 In `src/BookingDojo.Api/Controllers/AuditLogsController.cs`, update `GetAuditLogs()` to HTML-encode the Details field before returning it:
 
-The fixed server-side code in `AuditLogsController.cs`:
+Replace this code: 
+
+```csharp
+return Ok(logs.Select(l => new AuditLogDto(
+    l.Id,
+    l.Timestamp,
+    l.Username,
+    l.Action,
+    l.Details)));
+```
+
+
+With this one:
 
 ```csharp
 using System.Text.Encodings.Web;
