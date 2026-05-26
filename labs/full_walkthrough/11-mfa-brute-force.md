@@ -86,7 +86,7 @@ Response:
 
 ---
 
-## Step 3 – Retrieve the OTP (workshop delivery simulation)
+## Step 3 – Retrieve the OTP 
 
 ```bash
 curl -s -b cookies.txt http://localhost:5001/bff/auth/mfa/otp | jq
