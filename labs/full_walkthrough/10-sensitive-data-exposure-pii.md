@@ -89,6 +89,8 @@ That single change is the entire fix. `storedCardNumber` is assigned to `CardNum
 
 The `lastFour` variable is kept — the last 4 digits are harmless and needed for display.
 
+**The fix addresses new bookings going forward. Historical bookings will need to be handled separately by the DBA.**
+ 
 ---
 
 ## Step 4 – Verify
