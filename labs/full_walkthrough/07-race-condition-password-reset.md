@@ -95,7 +95,7 @@ TOKEN=$(curl -s -X POST http://localhost:5001/bff/auth/forgot-password \
 
 curl -s -X POST http://localhost:5001/bff/auth/reset-password \
   -H "Content-Type: application/json" \
-  -d "{\"token\":\"$TOKEN\",\"newPassword\":\"Partner1234!\"}" | jq .
+  -d "$(printf '{"token":"%s","newPassword":"Partner1234!"}' "$TOKEN")" | jq .
 ```
 
 ---
