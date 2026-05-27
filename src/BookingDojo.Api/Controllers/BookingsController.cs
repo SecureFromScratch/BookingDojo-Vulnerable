@@ -26,10 +26,11 @@ public class BookingsController : ControllerBase
     {
         const int PageSize = 10;
         var userId = Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
+        var isAdmin = User.FindFirstValue("role") == "AdminUser";
 
         var query = _db.Bookings
             .Include(b => b.Hotel)
-            .Where(b => b.UserId == userId)
+            .Where(b => isAdmin || b.UserId == userId)
             .OrderByDescending(b => b.CreatedAt);
 
         var total = await query.CountAsync();
@@ -53,18 +54,30 @@ public class BookingsController : ControllerBase
         [FromQuery] string q = "",
         [FromQuery] int? pageSize = null)
     {
+        int usedPageSize;
+        if (!pageSize.HasValue || pageSize.Value > 20)
+        {
+            usedPageSize = 20;
+        }
+        else
+        {
+            usedPageSize = pageSize.Value;
+        }
+
         var userId = Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
+        var isAdmin = User.FindFirstValue("role") == "AdminUser";
 
         // VULNERABLE PATH (SQL injection)
         // q is concatenated directly into raw SQL — injectable.
         // No LIMIT clause: every matching row is read into memory.
         var sql = "SELECT b.\"Id\", b.\"UserId\", b.\"Username\", b.\"HotelId\", b.\"CardLastFour\"," +
-                  " b.\"CheckIn\", b.\"CheckOut\", b.\"SpecialRequests\", b.\"TotalPrice\", b.\"CreatedAt\"," +
-                  " h.\"Name\" AS \"HotelName\"" +
-                  " FROM bookingdojo.\"Bookings\" b" +
-                  " JOIN bookingdojo.\"Hotels\" h ON b.\"HotelId\" = h.\"Id\"" +
-                  $" WHERE b.\"UserId\" = '{userId}' AND h.\"Name\" ILIKE '%{q}%'" +
-                  " ORDER BY b.\"CreatedAt\" DESC";
+          " b.\"CheckIn\", b.\"CheckOut\", b.\"SpecialRequests\", b.\"TotalPrice\", b.\"CreatedAt\"," +
+          " h.\"Name\" AS \"HotelName\"" +
+          " FROM bookingdojo.\"Bookings\" b" +
+          " JOIN bookingdojo.\"Hotels\" h ON b.\"HotelId\" = h.\"Id\"" +
+          " WHERE (@isAdmin = TRUE OR b.\"UserId\" = @userId) AND h.\"Name\" ILIKE @hotelName" +
+          " ORDER BY b.\"CreatedAt\" DESC" +
+          " LIMIT @usedPageSize";
 
         List<BookingDto> results = new();
         var conn = _db.Database.GetDbConnection();
@@ -74,6 +87,32 @@ public class BookingsController : ControllerBase
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = sql;
+
+            // Add parameters
+            var isAdminParam = cmd.CreateParameter();
+            isAdminParam.ParameterName = "@isAdmin";
+            isAdminParam.Value = isAdmin;
+            isAdminParam.DbType = DbType.Boolean;
+            cmd.Parameters.Add(isAdminParam);
+
+            var userIdParam = cmd.CreateParameter();
+            userIdParam.ParameterName = "@userId";
+            userIdParam.Value = userId;
+            userIdParam.DbType = DbType.Guid;
+            cmd.Parameters.Add(userIdParam);
+
+            var hotelNameParam = cmd.CreateParameter();
+            hotelNameParam.ParameterName = "@hotelName";
+            hotelNameParam.Value = $"%{q}%";
+            hotelNameParam.DbType = DbType.String;
+            cmd.Parameters.Add(hotelNameParam);
+
+            var pageSizeParam = cmd.CreateParameter();
+            pageSizeParam.ParameterName = "@usedPageSize";
+            pageSizeParam.Value = usedPageSize;
+            pageSizeParam.DbType = DbType.Int32;
+            cmd.Parameters.Add(pageSizeParam);
+
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -109,21 +148,25 @@ public class BookingsController : ControllerBase
         // The client-supplied pageSize is honoured unconditionally — the server places
         // no upper bound. A caller can omit it (returns every row) or set it to
         // Integer.MaxValue to retrieve the entire table in a single request.
-        var truncated = false;
-        if (pageSize.HasValue && pageSize.Value > 0 && results.Count > pageSize.Value)
+        var truncated = true;
+        /*if (usedPageSize > 0 && results.Count > usedPageSize)
         {
-            results = results.Take(pageSize.Value).ToList();
+            results = results.Take(usedPageSize).ToList();
             truncated = true;
-        }
+        }*/
 
-        return Ok(new { results, truncated, appliedPageSize = pageSize });
+        return Ok(new { results, truncated, appliedPageSize = usedPageSize });
     }
 
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetBookingById(int id)
     {
+        var userId = Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
+        var isAdmin = User.FindFirstValue("role") == "AdminUser";
+
         var booking = await _db.Bookings
             .Include(b => b.Hotel)
+            .Where(b => isAdmin || b.UserId == userId)
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (booking == null)

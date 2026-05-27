@@ -136,7 +136,7 @@ curl -s -X POST http://localhost:5000/api/auth/login \\
                     </code>
                   </td>
                   {/* WORKSHOP: VULNERABLE — dangerouslySetInnerHTML renders stored HTML/JS (Lab 01 XSS) */}
-                  <td dangerouslySetInnerHTML={{ __html: log.details }} />
+                  <td>{ log.details }</td>
                   <td>
                     <button
                       onClick={() => handleDelete(log.id)}
