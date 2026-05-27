@@ -2,7 +2,7 @@
 
 **Difficulty:** Beginner  
 **Category:** Injection  
-**OWASP Top 10:** A03:2021 — Injection
+**OWASP Top 10:** A05:2025 — Injection
 
 ---
 
