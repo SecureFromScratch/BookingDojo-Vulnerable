@@ -2,7 +2,7 @@
 
 **Difficulty:** Intermediate  
 **Category:** Broken Access Control / Authorization Design  
-**OWASP Top 10:** A01:2021 — Broken Access Control
+**OWASP Top 10:** A01:2025 — Broken Access Control
 
 ---
 
