@@ -2,6 +2,8 @@
 
 **Difficulty:** Beginner  
 **Category:** Injection / Cross-Site Scripting
+**OWASP Top 10:** A03:2021 — Injection
+
 
 ---
 
