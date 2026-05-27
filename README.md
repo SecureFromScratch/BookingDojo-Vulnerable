@@ -7,9 +7,10 @@ A deliberately vulnerable travel booking platform for secure coding workshops.
 
 ## Quick Start (GitHub Codespaces)
 
-1. Click **Code → Codespaces → Create codespace on main**
-2. Wait for setup to complete — the first build runs automatically and takes ~10 minutes (pulls images, restores packages, seeds the database)
-3. Once setup finishes, open three terminals and run:
+1. Login to GitHub
+2. Click **Code → Codespaces → Create codespace on main**
+3. Wait for setup to complete — the first build runs automatically and takes ~10 minutes (pulls images, restores packages, seeds the database)
+4. Once setup finishes, open three terminals and run:
 
 ```bash
 # Terminal 1 — API (port 5000)
