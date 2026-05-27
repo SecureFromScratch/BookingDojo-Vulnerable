@@ -1,7 +1,7 @@
 # Exercise 01 — Stored XSS in Audit Logs
 
 **Difficulty:** Beginner  
-**Category:** Injection / Cross-Site Scripting
+**Category:** Injection / Cross-Site Scripting    
 **OWASP Top 10:** A05:2025 — Injection
 
 
