@@ -60,6 +60,51 @@ If any check fails the script prints the exact command to fix it.
 scripts/setup.sh
 ```
 
+## Windows Automatic Setup(recommanded) - Thanks to @OfekGayero:
+
+(Step 0 and 1 are required to be executed once every time you turn on the computer)
+
+Open docker desktop and wait until it loads up
+1.Run docker-setup.bat
+
+(Step 2 and 3 are useful to reopening the project again on same session before turning off the computer)
+
+Run launch-servers.bat
+
+Run Open Website
+
+## Windows Manual Setup:
+
+(Step 0 and 1 are required to be executed once every time you turn on the computer)
+
+Open docker desktop
+
+Start up docker on a git bash cli
+docker compose up -d
+MSYS_NO_PATHCONV=1 bash scripts/setup.sh
+
+(Step 2 and 3 are useful to reopening the project again on same session before turning off the computer)
+
+2.Open 3 git bash cli and execute each command in a separate cli:
+
+Load api server:
+dotnet run --project src/BookingDojo.Api
+
+Load bff server:
+dotnet run --project src/BookingDojo.Bff
+
+Load the ui server:
+cd src/bookingdojo-ui
+npm run dev
+
+3.Open the browser and insert the website address:
+http://localhost:5173
+
+Closing the app:
+
+ctrl+c on all three cli windows
+
+
 ## Quick Start (Local)
 
 ```bash
