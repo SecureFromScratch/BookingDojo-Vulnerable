@@ -60,7 +60,9 @@ If any check fails the script prints the exact command to fix it.
 scripts/setup.sh
 ```
 
-## Windows Automatic Setup(recommanded) - Thanks to @OfekGayero:
+## Windows Setup - Thanks to @OfekGayero:
+
+### Windows Automatic Setup(recommanded) 
 
 (Step 0 and 1 are required to be executed once every time you turn on the computer)
 
@@ -73,7 +75,7 @@ Run launch-servers.bat
 
 Run Open Website
 
-## Windows Manual Setup:
+### Windows Manual Setup:
 
 (Step 0 and 1 are required to be executed once every time you turn on the computer)
 
