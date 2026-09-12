@@ -57,6 +57,16 @@ Log in as `admin / Admin1234!` (or `support / Support1234!`) and navigate to **A
 
 **Expected result:** An alert dialog appears, showing the message `XSS from ` followed by any cookies accessible to JavaScript.
 
+You will not see any cookie value. Why?
+
+Becuase they are HttpOnly - meaning JS cannot acces sthem.
+
+Let's create one in the console:
+
+document.cookie = "notsafe=Gotcha; path=/";
+
+Refresh the page, and Viola!
+
 ---
 
 ## Step 4 — Understand Why It Works
