@@ -83,6 +83,17 @@ return Ok(logs.Select(l => new AuditLogDto(
     l.Id, l.Timestamp, l.Username, l.Action, l.Details)));
 ```
 
+The DTO `Details` field name gives no warning that the field's content requires caution:
+
+```csharp
+public record AuditLogDto(
+    Guid Id,
+    DateTime Timestamp,
+    string Username,
+    string Action,
+    string Details);
+```
+
 ### The vulnerable client-side code
 
 **File:** `src/bookingdojo-ui/src/pages/AuditLogsPage.tsx`
@@ -178,6 +189,26 @@ Replace the vulnerable `<td>` in `AuditLogsPage.tsx`:
 ```
 
 React's default rendering always uses `textContent` instead of `innerHTML`, so even unencoded HTML from the server will be displayed as literal text.
+
+### When theory and the real world are misaligned...
+
+Encoding the html works to mitigate the vulnerability - but probably at the cost of ruining the entire feature.
+
+Becuase, think about: there's must have been a reason the client developer used `dangerouslySetInnerHTML` - nobody wraps a value with `dangerouslySetInnerHTML` just for the fun of it (at least, so we hope).
+
+Having the markup *active* was probably a required feature.
+
+If we encode the description, and that feature stops working, there's a pretty good chance someone will eventually decode it again to get that markup back - bringing the vulnerability right back with it.
+
+Encoding isn't completely useless, though.
+
+At least it forces the developer to explicitly take inert, encoded HTML and turn it back into active markup.
+
+But if active markup is actually a requirement, encoding is not the *complete* solution.
+
+You either need sanitization (which works pretty well but you can never be 100% sure it blocks all malicious attempts), or allow for a more secure way of adding markup - i.e. basic Markdown (with html tags support turned off).
+
+However, this is out-of-scope for this walkthrough.
 
 ---
 
