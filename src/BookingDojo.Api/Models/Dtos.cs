@@ -59,7 +59,7 @@ public record AuditLogDto(
     string Details);
 
 public record AddToCartRequest(Guid HotelId, DateTime CheckIn, DateTime CheckOut, string CardNumber, string SpecialRequests);
-public record CartCheckoutRequest(string? CouponCode);
+public record CartCheckoutRequest(string? CouponCode, string? MfaBypass = null);
 public record CartItemDto(int Id, Guid HotelId, string HotelName, DateTime CheckIn, DateTime CheckOut, string CardLastFour, string? CardNumber, string SpecialRequests, decimal TotalPrice);
 public record CartDto(int Id, List<CartItemDto> Items, string? AppliedCouponCode, int? AppliedCouponDiscountPercent, int AppliedCouponCount);
 public record CheckoutResult(List<BookingDto> Bookings, int? DiscountPercent, string? CouponMessage);

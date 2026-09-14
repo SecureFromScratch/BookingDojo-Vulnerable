@@ -175,12 +175,12 @@ export const api = {
   removeFromCart: (itemId: number) =>
     request<void>(`/bff/cart/items/${itemId}`, { method: 'DELETE' }),
 
-  checkout: async (couponCode?: string) => {
+  checkout: async (couponCode?: string, mfaBypass?: 'DEMO') => {
     const response = await fetch('/bff/cart/checkout', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ couponCode: couponCode || null }),
+      body: JSON.stringify({ couponCode: couponCode || null, ...(mfaBypass && { mfaBypass }) }),
     })
     if (response.status === 403) {
       const body = await response.json().catch(() => ({}))

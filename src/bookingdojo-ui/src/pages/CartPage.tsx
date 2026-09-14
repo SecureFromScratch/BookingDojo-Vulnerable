@@ -101,6 +101,16 @@ export default function CartPage() {
     setMfaLoading(true)
     setMfaError('')
     try {
+      if (mfaCode === 'DEMO') {
+        const result = await api.checkout(pendingCoupon, 'DEMO')
+        setCheckoutResult(result)
+        setCart(prev => prev ? { ...prev, items: [] } : prev)
+        setAppliedCoupon(null)
+        setMfaRequired(false)
+        setMfaCode('')
+        return
+      }
+
       await api.mfaVerify(mfaCode)
       setMfaRequired(false)
       setMfaCode('')
@@ -301,16 +311,21 @@ export default function CartPage() {
                     <label>One-time code</label>
                     <input
                       type="text"
-                      inputMode="numeric"
+                      inputMode="text"
                       maxLength={4}
                       placeholder="0000"
                       value={mfaCode}
-                      onChange={e => { setMfaCode(e.target.value.replace(/\D/g, '')); setMfaError('') }}
+                      onChange={e => {
+                        const value = e.target.value.toUpperCase()
+                        setMfaCode('DEMO'.startsWith(value) ? value : value.replace(/\D/g, '').slice(0, 4))
+                        setMfaError('')
+                      }}
                       style={{ letterSpacing: '0.4em', fontFamily: 'monospace', fontSize: '1.2rem', textAlign: 'center' }}
                       autoFocus
                     />
+                    <small style={{ display: 'block', marginTop: '0.25rem', color: '#94a3b8' }}>Enter DEMO to bypss</small>
                   </div>
-                  <button type="submit" className="btn-primary" disabled={mfaLoading || mfaCode.length !== 4}>
+                  <button type="submit" className="btn-primary" disabled={mfaLoading || (mfaCode !== 'DEMO' && mfaCode.length !== 4)}>
                     {mfaLoading ? 'Verifying…' : 'Verify & Pay'}
                   </button>
                 </form>
