@@ -111,15 +111,15 @@ using (var scope = app.Services.CreateScope())
     var schemaStale = false;
     try
     {
-        await db.Bookings.FirstOrDefaultAsync();
-        await db.Coupons.FirstOrDefaultAsync();
-        await db.PasswordResetTokens.FirstOrDefaultAsync();
-        await db.Carts.FirstOrDefaultAsync();
-        await db.CartItems.FirstOrDefaultAsync();
-        await db.MfaChallenges.FirstOrDefaultAsync();
+        await db.Bookings.OrderBy(b => b.Id).FirstOrDefaultAsync();
+        await db.Coupons.OrderBy(c => c.Id).FirstOrDefaultAsync();
+        await db.PasswordResetTokens.OrderBy(p => p.Id).FirstOrDefaultAsync();
+        await db.Carts.OrderBy(c => c.Id).FirstOrDefaultAsync();
+        await db.CartItems.OrderBy(ci => ci.Id).FirstOrDefaultAsync();
+        await db.MfaChallenges.OrderBy(m => m.Id).FirstOrDefaultAsync();
         await db.Users.Select(u => u.AvatarUrl).FirstOrDefaultAsync();
-        await db.RefreshTokens.FirstOrDefaultAsync();
-        await db.Webhooks.FirstOrDefaultAsync();
+        await db.RefreshTokens.OrderBy(r => r.Id).FirstOrDefaultAsync();
+        await db.Webhooks.OrderBy(w => w.Id).FirstOrDefaultAsync();
     }
     catch { schemaStale = true; }
 
