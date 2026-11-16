@@ -54,21 +54,33 @@ public class ProfileController : ControllerBase
         if (!file.ContentType.StartsWith("image/"))
             return BadRequest(new { message = "Only image files are accepted" });
 
+        var userId = Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
+        var user = await _db.Users.FindAsync(userId);
+        if (user == null)
+            return NotFound();
+
         using var ms = new MemoryStream();
         await file.CopyToAsync(ms);
         var base64 = Convert.ToBase64String(ms.ToArray());
-        var dataUrl = $"data:{file.ContentType};base64,{base64}";
+        var avatarUrl = $"data:{file.ContentType};base64,{base64}";
 
-        var userId = Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
-        var user = await _db.Users.FindAsync(userId);
-        if (user == null) return NotFound();
+        /* SPECIAL SVG HANDLING DISABLED - LOOK AT FULL WALKTHOUGH FOR DETAILS
+        // SVG is the textual image format supported by this route.
+        var isSvg = file.ContentType.Split(';')[0].Trim()
+            .Equals("image/svg+xml", StringComparison.OrdinalIgnoreCase);
 
-        user.AvatarUrl = dataUrl;
+        var avatarUrl = isSvg
+            ? "/bff/profile/unembedImage?base64=" + Uri.EscapeDataString(base64)
+            : $"data:{file.ContentType};base64,{base64}";
+        */
+        
+        user.AvatarUrl = avatarUrl;
         await _db.SaveChangesAsync();
 
-        return Ok(new { message = "Avatar updated", avatarUrl = dataUrl });
+        return Ok(new { message = "Avatar updated", avatarUrl = avatarUrl });
     }
 
+    // example external image url: https://img-s-msn-com.akamaized.net/tenant/amp/entityid/AA2h4TQ5.img?w=1012&h=675&m=6
     [HttpPost("avatar-url")]
     public async Task<IActionResult> SetAvatarFromUrl([FromBody] SetAvatarUrlRequest request)
     {
@@ -103,5 +115,38 @@ public class ProfileController : ControllerBase
         {
             return Ok(new AvatarFetchResponse(request.Url, null, null, "Request timed out"));
         }
+    }
+
+
+    [HttpGet("unembedImage")]
+    public IActionResult UnembedImage([FromQuery] string base64)
+    {
+        byte[] bytes;
+
+        try
+        {
+            bytes = Convert.FromBase64String(base64);
+        }
+        catch (FormatException)
+        {
+            return BadRequest("Invalid Base64");
+        }
+
+        // Limit payload size.
+        if (bytes.Length > 512 * 1024)
+            return BadRequest("Image too large");
+
+        // This endpoint only serves SVG content.
+        var content = System.Text.Encoding.UTF8.GetString(bytes);
+        if (!content.Contains("<svg", StringComparison.OrdinalIgnoreCase))
+            return BadRequest("Not an SVG image");
+
+        Response.Headers["Content-Security-Policy"] =
+            "default-src 'none'; script-src 'none'; sandbox";
+
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Cache-Control"] = "no-store";
+
+        return File(bytes, "image/svg+xml");
     }
 }

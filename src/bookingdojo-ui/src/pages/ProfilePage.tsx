@@ -97,7 +97,7 @@ export default function ProfilePage() {
 
       <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start', marginBottom: '2rem' }}>
         <div>
-          {profile.avatarUrl && !profile.avatarUrl.startsWith('http') ? (
+          {profile.avatarUrl && profile.avatarUrl.startsWith('data') ? (
             <img
               src={profile.avatarUrl}
               alt="avatar"
@@ -105,7 +105,11 @@ export default function ProfilePage() {
             />
           ) : profile.avatarUrl ? (
             <div style={{ width: 100, height: 100, borderRadius: '50%', background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#aaa', textAlign: 'center', padding: 4 }}>
-              external URL
+              <img
+                src={profile.avatarUrl}
+                alt="avatar"
+                style={{ width: 100, height: 100, borderRadius: '50%', objectFit: 'cover', border: '2px solid #444' }}
+              />
             </div>
           ) : (
             <div style={{ width: 100, height: 100, borderRadius: '50%', background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>
