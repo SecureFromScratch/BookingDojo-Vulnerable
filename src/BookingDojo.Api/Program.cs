@@ -35,6 +35,7 @@ builder.Services.AddDbContext<BookingDojoDbContext>(options =>
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AuditLogService>();
 builder.Services.AddScoped<DataSeeder>();
+builder.Services.AddScoped<ModelsUpdater>();
 
 // HttpClient for outbound webhook calls (Lab 08 — SSRF)
 builder.Services.AddHttpClient("webhook", client =>

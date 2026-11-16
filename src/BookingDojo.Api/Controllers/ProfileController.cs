@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using BookingDojo.Api.Data;
 using BookingDojo.Api.Models;
+using BookingDojo.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,11 +16,16 @@ public class ProfileController : ControllerBase
 {
     private readonly BookingDojoDbContext _db;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ModelsUpdater _modelsUpdater;
 
-    public ProfileController(BookingDojoDbContext db, IHttpClientFactory httpClientFactory)
+    public ProfileController(
+        BookingDojoDbContext db,
+        IHttpClientFactory httpClientFactory,
+        ModelsUpdater modelsUpdater)
     {
         _db = db;
         _httpClientFactory = httpClientFactory;
+        _modelsUpdater = modelsUpdater;
     }
 
     [HttpGet]
@@ -32,18 +38,21 @@ public class ProfileController : ControllerBase
     }
 
     [HttpPut]
-    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+    public async Task<IActionResult> UpdateProfile([FromBody] Dictionary<string, System.Text.Json.JsonElement> request)
     {
         var userId = Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
         var user = await _db.Users.FindAsync(userId);
         if (user == null) return NotFound();
 
-        user.DisplayName = request.DisplayName;
-        user.Bio = request.Bio;
-        await _db.SaveChangesAsync();
+        await _modelsUpdater.UpdateFromJson(_db.Users, user, request);
 
         return Ok(new ProfileDto(user.Username, user.Role, user.DisplayName, user.Bio, user.AvatarUrl));
     }
+
+    /*
+    USING A DTO:
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+    */
 
     [HttpPost("avatar")]
     public async Task<IActionResult> UploadAvatar(IFormFile file)
@@ -73,7 +82,7 @@ public class ProfileController : ControllerBase
             ? "/bff/profile/unembedImage?base64=" + Uri.EscapeDataString(base64)
             : $"data:{file.ContentType};base64,{base64}";
         */
-        
+
         user.AvatarUrl = avatarUrl;
         await _db.SaveChangesAsync();
 
