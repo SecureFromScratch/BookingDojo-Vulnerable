@@ -73,6 +73,8 @@ public class BffProxyController : ControllerBase
 
         Response.StatusCode = (int)response.StatusCode;
         Response.ContentType = response.Content.Headers.ContentType?.ToString() ?? "application/json; charset=utf-8";
+        if (response.Headers.TryGetValues("Content-Security-Policy", out var csp))
+            Response.Headers["Content-Security-Policy"] = csp.ToArray();
 
         var responseBody = await response.Content.ReadAsStringAsync();
         if (!string.IsNullOrEmpty(responseBody))
